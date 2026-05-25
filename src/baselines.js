@@ -17,15 +17,20 @@ function writeBaselines(baselines) {
   fs.writeFileSync(baselinesPath, JSON.stringify(baselines, null, 2) + "\n");
 }
 
-function getBaselineKey(result) {
-  return `${result.store}:${result.watchName}`;
+function getBaselineKey(store, watchName) {
+  return `${store}:${watchName}`;
+}
+
+function getBaseline(store, watchName) {
+  const baselines = readBaselines();
+  return baselines[getBaselineKey(store, watchName)] ?? null;
 }
 
 function updateBaseline(result) {
   if (result.price === null) return null;
 
   const baselines = readBaselines();
-  const key = getBaselineKey(result);
+  const key = getBaselineKey(result.store, result.watchName);
   const existing = baselines[key];
 
   if (!existing) {
@@ -55,4 +60,4 @@ function updateBaseline(result) {
   return baselines[key];
 }
 
-module.exports = { updateBaseline };
+module.exports = { updateBaseline, getBaseline };

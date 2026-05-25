@@ -1,16 +1,16 @@
 {
   "newegg:DDR5 32GB Newegg Test": {
-    "averagePrice": 484.09,
-    "marketSampleSize": 20,
+    "averagePrice": 369.99,
+    "marketSampleSize": 1,
     "lowestSeen": 369.99,
-    "highestSeen": 609.99,
-    "updatedAt": "2026-05-17T00:42:47.646Z"
+    "highestSeen": 369.99,
+    "updatedAt": "2026-05-25T23:08:32.625Z"
   },
   "newegg:DDR5 64GB Newegg Test": {
-    "averagePrice": 1068.15,
-    "marketSampleSize": 20,
+    "averagePrice": 735.99,
+    "marketSampleSize": 1,
     "lowestSeen": 735.99,
-    "highestSeen": 1287.64,
-    "updatedAt": "2026-05-17T00:42:52.125Z"
+    "highestSeen": 735.99,
+    "updatedAt": "2026-05-25T23:08:37.470Z"
   }
 }

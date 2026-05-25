@@ -4,5 +4,6 @@ node_modules/
 # Generated at runtime
 data/baselines.json
 data/price-history.jsonl
+data/alert-state.json
 
 .DS_Store
