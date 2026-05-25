@@ -24,6 +24,18 @@ Node.js price watcher that scrapes configured store searches, logs results, and 
 
    Get a bot token from [@BotFather](https://t.me/BotFather). Your chat ID is the numeric ID of the chat or channel where alerts should go.
 
+## Browser mode
+
+Playwright runs **headless by default** (no window), including when `HEADLESS` is unset or set to `true`. That suits unattended runs on a server or with `npm run watch`.
+
+To debug scraping with a visible browser, set in `.env`:
+
+```bash
+HEADLESS=false
+```
+
+Only the literal value `false` opens a window; any other value keeps headless mode. Applies to `npm start` and `npm run watch`.
+
 ## Commands
 
 - **`npm start`** — Run one scan pass: read watches from `data/products.json`, scrape each watch, append to `data/price-history.jsonl`, update `data/baselines.json`, and send Telegram messages for alerts.

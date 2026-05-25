@@ -1,6 +1,10 @@
+require("dotenv").config();
+
 const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
+
+const headless = process.env.HEADLESS !== "false";
 
 const { updateBaseline, getBaseline } = require("./baselines");
 const { shouldSendTelegramAlert, recordAlertSent } = require("./alert-state");
@@ -44,7 +48,7 @@ async function runScan() {
   const products = JSON.parse(fs.readFileSync(productsPath, "utf8"));
 
   const browser = await chromium.launch({
-    headless: false,
+    headless,
     channel: "chromium",
   });
 
