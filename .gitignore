@@ -1,0 +1,8 @@
+.env
+node_modules/
+
+# Generated at runtime
+data/baselines.json
+data/price-history.jsonl
+
+.DS_Store

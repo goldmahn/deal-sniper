@@ -1,11 +1,11 @@
 {
   "name": "dealbot",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-"scripts": {
-  "start": "node src/index.js",
-  "test:telegram": "node src/test-telegram.js"
+  "description": "Deal Sniper — price watch bot with Telegram alerts",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test:telegram": "node src/test-telegram.js"
   },
   "keywords": [],
   "author": "",
