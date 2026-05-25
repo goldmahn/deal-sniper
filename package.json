@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "watch": "node src/watch.js",
+    "status": "node src/status.js",
     "test:telegram": "node src/test-telegram.js"
   },
   "keywords": [],

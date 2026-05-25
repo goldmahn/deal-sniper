@@ -6,4 +6,6 @@ data/baselines.json
 data/price-history.jsonl
 data/alert-state.json
 
+logs/
+
 .DS_Store

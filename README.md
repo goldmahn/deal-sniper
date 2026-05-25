@@ -40,7 +40,33 @@ Only the literal value `false` opens a window; any other value keeps headless mo
 
 - **`npm start`** — Run one scan pass: read watches from `data/products.json`, scrape each watch, append to `data/price-history.jsonl`, update `data/baselines.json`, and send Telegram messages for alerts.
 - **`npm run watch`** — Run scans repeatedly on a timer (default every 15 minutes, set `POLL_INTERVAL_MINUTES` in `.env`). Skips a tick if the previous scan is still running. Logs scan start/end and the next scheduled tick.
+- **`npm run status`** — Quick health check: watch process running, last log lines, data file sizes, baseline summary.
 - **`npm run test:telegram`** — Send a single test message (`Deal Sniper online.`) to verify `.env` and Telegram connectivity.
+
+## Unattended operation (tmux)
+
+On Ginnungagap, run watch mode in a detached tmux session so it survives logout:
+
+```bash
+cd /path/to/dealscanner/dealbot
+tmux new -s dealsniper
+npm run watch
+```
+
+Detach with `Ctrl-b` then `d`. Reattach later:
+
+```bash
+tmux attach -t dealsniper
+```
+
+Check health without attaching:
+
+```bash
+npm run status
+tail -f logs/dealsniper.log
+```
+
+Operational events append to `logs/dealsniper.log` (plain text, gitignored). Each scan logs start/end, duration, listing counts, alerts, Telegram sends, and errors. Listing JSON still goes to the console and `data/price-history.jsonl`.
 
 ## Watch list (`data/products.json`)
 
@@ -103,5 +129,6 @@ Example:
 - `data/baselines.json` — rolling price stats per watch
 - `data/price-history.jsonl` — append-only log of each scraped listing
 - `data/alert-state.json` — last Telegram alert per listing (deduplication)
+- `logs/dealsniper.log` — operational scan log (start/end, counts, errors)
 
 These files are created on first run and listed in `.gitignore`.

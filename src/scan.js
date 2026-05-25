@@ -11,6 +11,7 @@ const { shouldSendTelegramAlert, recordAlertSent } = require("./alert-state");
 const { sendTelegramMessage } = require("./telegram");
 const { checkNeweggSearch } = require("./stores/newegg");
 const { validateListingTitle } = require("./validation");
+const { writeLog } = require("./logger");
 
 const productsPath = path.join(__dirname, "..", "data", "products.json");
 const historyPath = path.join(__dirname, "..", "data", "price-history.jsonl");
@@ -45,16 +46,37 @@ function shouldAlert(result, baseline) {
 }
 
 async function runScan() {
-  const products = JSON.parse(fs.readFileSync(productsPath, "utf8"));
+  const startedAt = Date.now();
+  const stats = {
+    watches: 0,
+    listingsScraped: 0,
+    listingsValid: 0,
+    candidates: 0,
+    alerts: 0,
+    telegramSends: 0,
+  };
 
-  const browser = await chromium.launch({
-    headless,
-    channel: "chromium",
-  });
+  let products;
+  try {
+    products = JSON.parse(fs.readFileSync(productsPath, "utf8"));
+    stats.watches = products.length;
+  } catch (error) {
+    writeLog(`ERROR Scan failed to load products: ${error.message}`);
+    throw error;
+  }
 
-  const page = await browser.newPage();
+  writeLog(`Scan started watches=${stats.watches} headless=${headless}`);
+
+  let browser;
 
   try {
+    browser = await chromium.launch({
+      headless,
+      channel: "chromium",
+    });
+
+    const page = await browser.newPage();
+
     for (const product of products) {
       try {
         let results = [];
@@ -66,8 +88,11 @@ async function runScan() {
 
           default:
             console.error(`Unknown store: ${product.store}`);
+            writeLog(`ERROR Unknown store for watch="${product.name}": ${product.store}`);
             continue;
         }
+
+        stats.listingsScraped += results.length;
 
         for (const result of results) {
           const validation = validateListingTitle(
@@ -81,7 +106,12 @@ async function runScan() {
         const validResults = results.filter(
           (result) => result.validationPassed
         );
+        stats.listingsValid += validResults.length;
+
         const candidate = pickWatchCandidate(validResults);
+        if (candidate) {
+          stats.candidates += 1;
+        }
         const baselineBefore = candidate
           ? getBaseline(candidate.store, candidate.watchName)
           : null;
@@ -100,10 +130,12 @@ async function runScan() {
             result.alert = shouldAlert(candidate, baselineBefore);
 
             if (result.alert) {
+              stats.alerts += 1;
               const { send, reason } = shouldSendTelegramAlert(candidate);
               result.telegramSent = send;
 
               if (send) {
+                stats.telegramSends += 1;
                 const alertMessage = `🚨 DEAL SNIPER ALERT 🚨
 
 ${candidate.watchName}
@@ -137,10 +169,21 @@ ${candidate.url}`;
         console.log("\n---\n");
       } catch (error) {
         console.error(`Error checking ${product.name}:`, error.message);
+        writeLog(`ERROR watch="${product.name}" ${error.message}`);
       }
     }
+  } catch (error) {
+    writeLog(`ERROR Scan failed: ${error.message}`);
+    throw error;
   } finally {
-    await browser.close();
+    if (browser) {
+      await browser.close();
+    }
+
+    const durationSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+    writeLog(
+      `Scan ended durationSec=${durationSec} watches=${stats.watches} listingsScraped=${stats.listingsScraped} listingsValid=${stats.listingsValid} candidates=${stats.candidates} alerts=${stats.alerts} telegramSends=${stats.telegramSends}`
+    );
   }
 }
 

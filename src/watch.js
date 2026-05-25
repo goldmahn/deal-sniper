@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const { runScan } = require("./scan");
+const { writeLog } = require("./logger");
 
 const pollIntervalMinutes = Number(process.env.POLL_INTERVAL_MINUTES) || 15;
 const pollIntervalMs = pollIntervalMinutes * 60 * 1000;
@@ -19,6 +20,7 @@ async function runScanTick() {
     console.log(
       `[watch] ${new Date().toISOString()} Skipping tick — previous scan still running`
     );
+    writeLog("Watch tick skipped reason=scan_in_progress");
     logNextTick();
     return;
   }
@@ -31,6 +33,7 @@ async function runScanTick() {
     await runScan();
   } catch (error) {
     console.error(`[watch] Scan failed: ${error.message}`);
+    writeLog(`ERROR Watch tick failed: ${error.message}`);
   } finally {
     scanInProgress = false;
     const endedAt = new Date();
@@ -45,6 +48,7 @@ async function runScanTick() {
 console.log(
   `[watch] Deal Sniper watch mode — poll interval ${pollIntervalMinutes} minutes`
 );
+writeLog(`Watch mode started intervalMinutes=${pollIntervalMinutes}`);
 logNextTick();
 runScanTick();
 setInterval(runScanTick, pollIntervalMs);
