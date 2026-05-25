@@ -1,0 +1,14 @@
+[
+  {
+    "name": "DDR5 32GB Newegg Test",
+    "store": "newegg",
+    "url": "https://www.newegg.com/p/pl?d=DDR5+32GB+6000",
+    "targetPrice": 80
+  },
+  {
+    "name": "DDR5 64GB Newegg Test",
+    "store": "newegg",
+    "url": "https://www.newegg.com/p/pl?d=DDR5+64GB+6000",
+    "targetPrice": 150
+  }
+]
