@@ -3,12 +3,24 @@
     "name": "DDR5 32GB Newegg Test",
     "store": "newegg",
     "url": "https://www.newegg.com/p/pl?d=DDR5+32GB+6000",
-    "targetPrice": 80
+    "targetPrice": 80,
+    "requirements": {
+      "generation": "DDR5",
+      "totalCapacityGB": 32,
+      "allowedKitLayouts": ["2x16"],
+      "excludeTerms": ["SO-DIMM", "SODIMM", "Laptop", "Mac", "Server"]
+    }
   },
   {
     "name": "DDR5 64GB Newegg Test",
     "store": "newegg",
     "url": "https://www.newegg.com/p/pl?d=DDR5+64GB+6000",
-    "targetPrice": 150
+    "targetPrice": 150,
+    "requirements": {
+      "generation": "DDR5",
+      "totalCapacityGB": 64,
+      "allowedKitLayouts": ["2x32", "4x16"],
+      "excludeTerms": ["SO-DIMM", "SODIMM", "Laptop", "Mac", "Server"]
+    }
   }
 ]

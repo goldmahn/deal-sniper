@@ -6,6 +6,7 @@ const { updateBaseline, getBaseline } = require("./baselines");
 const { shouldSendTelegramAlert, recordAlertSent } = require("./alert-state");
 const { sendTelegramMessage } = require("./telegram");
 const { checkNeweggSearch } = require("./stores/newegg");
+const { validateListingTitle } = require("./validation");
 
 const productsPath = path.join(__dirname, "..", "data", "products.json");
 const historyPath = path.join(__dirname, "..", "data", "price-history.jsonl");
@@ -63,7 +64,17 @@ function shouldAlert(result, baseline) {
           continue;
       }
 
-      const candidate = pickWatchCandidate(results);
+      for (const result of results) {
+        const validation = validateListingTitle(
+          result.title,
+          product.requirements
+        );
+        result.validationPassed = validation.validationPassed;
+        result.validationReasons = validation.validationReasons;
+      }
+
+      const validResults = results.filter((result) => result.validationPassed);
+      const candidate = pickWatchCandidate(validResults);
       const baselineBefore = candidate
         ? getBaseline(candidate.store, candidate.watchName)
         : null;
