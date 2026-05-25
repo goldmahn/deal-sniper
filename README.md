@@ -27,6 +27,7 @@ Node.js price watcher that scrapes configured store searches, logs results, and 
 ## Commands
 
 - **`npm start`** — Run one scan pass: read watches from `data/products.json`, scrape each watch, append to `data/price-history.jsonl`, update `data/baselines.json`, and send Telegram messages for alerts.
+- **`npm run watch`** — Run scans repeatedly on a timer (default every 15 minutes, set `POLL_INTERVAL_MINUTES` in `.env`). Skips a tick if the previous scan is still running. Logs scan start/end and the next scheduled tick.
 - **`npm run test:telegram`** — Send a single test message (`Deal Sniper online.`) to verify `.env` and Telegram connectivity.
 
 ## Watch list (`data/products.json`)
