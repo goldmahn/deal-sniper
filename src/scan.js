@@ -13,6 +13,7 @@ const { checkNeweggSearch } = require("./stores/newegg");
 const { validateListingTitle } = require("./validation");
 const { writeLog } = require("./logger");
 const { priceHistoryPath } = require("./monthly-paths");
+const { enrichNeweggListingIdentity } = require("./identity/newegg-ram");
 
 const root = path.join(__dirname, "..");
 const productsPath = path.join(root, "data", "products.json");
@@ -102,6 +103,7 @@ async function runScan() {
           );
           result.validationPassed = validation.validationPassed;
           result.validationReasons = validation.validationReasons;
+          enrichNeweggListingIdentity(result);
         }
 
         const validResults = results.filter(

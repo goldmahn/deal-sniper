@@ -134,3 +134,18 @@ Example:
 - `logs/dealsniper-YYYY-MM.log` — operational scan log (start/end, counts, errors; one file per month)
 
 These files are created on first run and listed in `.gitignore`.
+
+### Price history fields (`data/price-history-YYYY-MM.jsonl`)
+
+Each scraped listing is one JSON object per line. Newegg rows include product identity fields (enrich-only; does not change candidate selection or alerts):
+
+| Field | Description |
+|-------|-------------|
+| `productKey` | Stable id: `newegg:item:<id>`, `newegg:model:<MPN>`, or `newegg:url:<normalizedUrl>`. |
+| `productKeySource` | How `productKey` was derived: `newegg_item_id`, `model_number`, `normalized_url`, or `none`. |
+| `identityConfidence` | `high` (item id), `medium` (model only), or `low` (url fallback / missing). |
+| `neweggItemId` | Item id from URL path `/p/<id>`, if present. |
+| `modelNumber` | Manufacturer model parsed from title after `Model`, if present. |
+| `normalizedUrl` | Listing URL with query string and hash removed. |
+
+Other stores omit these fields until a store-specific identity module exists.
