@@ -130,7 +130,7 @@ Example:
 
 - `data/baselines.json` — rolling price stats per watch
 - `data/price-history-YYYY-MM.jsonl` — append-only log of each scraped listing (one file per month)
-- `data/alert-state.json` — last Telegram alert per listing (deduplication)
+- `data/alert-state.json` — last Telegram alert per product or listing (deduplication). Keys use `store:watchName:productKey` when `productKey` is present, otherwise `store:watchName:url` (legacy). No migration required; old URL keys are simply unused for listings that now have a `productKey`.
 - `logs/dealsniper-YYYY-MM.log` — operational scan log (start/end, counts, errors; one file per month)
 
 These files are created on first run and listed in `.gitignore`.
@@ -158,3 +158,10 @@ Other stores omit these fields until a store-specific identity module exists.
 | `dedupeGroupKey` | Set to `productKey` when dedupe applied; omitted when not applicable. |
 
 Listings without `productKey` stay eligible individually. Scan logs include `duplicatesCollapsed` per watch (when > 0) and in the scan summary line.
+
+**Alert identity (watch candidate rows)** — Cooldown in `data/alert-state.json` is keyed by canonical product when possible:
+
+| Field | Description |
+|-------|-------------|
+| `alertStateKey` | `store:watchName:productKey` or `store:watchName:url` fallback. |
+| `alertStateKeySource` | `productKey` or `url`. |

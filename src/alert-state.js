@@ -23,8 +23,22 @@ function writeAlertState(state) {
   fs.writeFileSync(alertStatePath, JSON.stringify(state, null, 2) + "\n");
 }
 
+function resolveAlertStateKey(listing) {
+  if (listing.productKey) {
+    return {
+      alertStateKey: `${listing.store}:${listing.watchName}:${listing.productKey}`,
+      alertStateKeySource: "productKey",
+    };
+  }
+
+  return {
+    alertStateKey: `${listing.store}:${listing.watchName}:${listing.url}`,
+    alertStateKeySource: "url",
+  };
+}
+
 function getAlertKey(listing) {
-  return `${listing.store}:${listing.watchName}:${listing.url}`;
+  return resolveAlertStateKey(listing).alertStateKey;
 }
 
 function shouldSendTelegramAlert(listing) {
@@ -57,4 +71,8 @@ function recordAlertSent(listing) {
   writeAlertState(state);
 }
 
-module.exports = { shouldSendTelegramAlert, recordAlertSent };
+module.exports = {
+  shouldSendTelegramAlert,
+  recordAlertSent,
+  resolveAlertStateKey,
+};

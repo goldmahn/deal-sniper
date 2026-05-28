@@ -7,7 +7,11 @@ const path = require("path");
 const headless = process.env.HEADLESS !== "false";
 
 const { updateBaseline, getBaseline } = require("./baselines");
-const { shouldSendTelegramAlert, recordAlertSent } = require("./alert-state");
+const {
+  shouldSendTelegramAlert,
+  recordAlertSent,
+  resolveAlertStateKey,
+} = require("./alert-state");
 const { sendTelegramMessage } = require("./telegram");
 const { checkNeweggSearch } = require("./stores/newegg");
 const { validateListingTitle } = require("./validation");
@@ -146,6 +150,10 @@ async function runScan() {
           result.marketSampleSize = watchBaseline?.marketSampleSize ?? 0;
 
           if (isWatchCandidate) {
+            const alertIdentity = resolveAlertStateKey(candidate);
+            result.alertStateKey = alertIdentity.alertStateKey;
+            result.alertStateKeySource = alertIdentity.alertStateKeySource;
+
             result.alert = shouldAlert(candidate, baselineBefore);
 
             if (result.alert) {
