@@ -149,3 +149,12 @@ Each scraped listing is one JSON object per line. Newegg rows include product id
 | `normalizedUrl` | Listing URL with query string and hash removed. |
 
 Other stores omit these fields until a store-specific identity module exists.
+
+**Dedupe (candidate selection only)** — After validation, valid listings with the same `productKey` are collapsed to one row (lowest price; tie → first scrape order). Every listing is still written to history:
+
+| Field | Description |
+|-------|-------------|
+| `dedupeRole` | `kept` (eligible for candidate), `duplicate` (same `productKey` as a cheaper or earlier listing), or `not_applicable` (failed validation). |
+| `dedupeGroupKey` | Set to `productKey` when dedupe applied; omitted when not applicable. |
+
+Listings without `productKey` stay eligible individually. Scan logs include `duplicatesCollapsed` per watch (when > 0) and in the scan summary line.

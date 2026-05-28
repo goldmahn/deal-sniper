@@ -14,6 +14,10 @@ const { validateListingTitle } = require("./validation");
 const { writeLog } = require("./logger");
 const { priceHistoryPath } = require("./monthly-paths");
 const { enrichNeweggListingIdentity } = require("./identity/newegg-ram");
+const {
+  dedupeValidListingsByProductKey,
+  annotateResultsDedupe,
+} = require("./identity/dedupe-by-product-key");
 
 const root = path.join(__dirname, "..");
 const productsPath = path.join(root, "data", "products.json");
@@ -56,6 +60,7 @@ async function runScan() {
     candidates: 0,
     alerts: 0,
     telegramSends: 0,
+    duplicatesCollapsed: 0,
   };
 
   let products;
@@ -111,7 +116,18 @@ async function runScan() {
         );
         stats.listingsValid += validResults.length;
 
-        const candidate = pickWatchCandidate(validResults);
+        const { keptForCandidate, keptSet, duplicatesCollapsed } =
+          dedupeValidListingsByProductKey(validResults);
+        stats.duplicatesCollapsed += duplicatesCollapsed;
+        annotateResultsDedupe(results, keptSet);
+
+        if (duplicatesCollapsed > 0) {
+          writeLog(
+            `Watch "${product.name}" duplicatesCollapsed=${duplicatesCollapsed}`
+          );
+        }
+
+        const candidate = pickWatchCandidate(keptForCandidate);
         if (candidate) {
           stats.candidates += 1;
         }
@@ -188,7 +204,7 @@ ${candidate.url}`;
 
     const durationSec = ((Date.now() - startedAt) / 1000).toFixed(1);
     writeLog(
-      `Scan ended durationSec=${durationSec} watches=${stats.watches} listingsScraped=${stats.listingsScraped} listingsValid=${stats.listingsValid} candidates=${stats.candidates} alerts=${stats.alerts} telegramSends=${stats.telegramSends}`
+      `Scan ended durationSec=${durationSec} watches=${stats.watches} listingsScraped=${stats.listingsScraped} listingsValid=${stats.listingsValid} duplicatesCollapsed=${stats.duplicatesCollapsed} candidates=${stats.candidates} alerts=${stats.alerts} telegramSends=${stats.telegramSends}`
     );
   }
 }
