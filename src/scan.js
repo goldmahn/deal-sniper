@@ -12,9 +12,10 @@ const { sendTelegramMessage } = require("./telegram");
 const { checkNeweggSearch } = require("./stores/newegg");
 const { validateListingTitle } = require("./validation");
 const { writeLog } = require("./logger");
+const { priceHistoryPath } = require("./monthly-paths");
 
-const productsPath = path.join(__dirname, "..", "data", "products.json");
-const historyPath = path.join(__dirname, "..", "data", "price-history.jsonl");
+const root = path.join(__dirname, "..");
+const productsPath = path.join(root, "data", "products.json");
 
 function pickWatchCandidate(results) {
   let best = null;
@@ -161,7 +162,10 @@ ${candidate.url}`;
             result.alert = false;
           }
 
-          fs.appendFileSync(historyPath, JSON.stringify(result) + "\n");
+          fs.appendFileSync(
+            priceHistoryPath(root),
+            JSON.stringify(result) + "\n"
+          );
 
           console.log(JSON.stringify(result, null, 2));
         }

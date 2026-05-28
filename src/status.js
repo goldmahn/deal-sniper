@@ -1,9 +1,16 @@
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
+const {
+  yearMonth,
+  priceHistoryPath,
+  dealsniperLogPath,
+  LEGACY_PRICE_HISTORY,
+  LEGACY_LOG,
+} = require("./monthly-paths");
+const { getLogPath } = require("./logger");
 
 const root = path.join(__dirname, "..");
-const logPath = path.join(root, "logs", "dealsniper.log");
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -21,7 +28,12 @@ function fileInfo(relativePath) {
   return `${relativePath}: ${formatBytes(size)} (modified ${mtime.toISOString()})`;
 }
 
+const ym = yearMonth();
+const currentHistoryRel = path.relative(root, priceHistoryPath(root, ym));
+const currentLogRel = path.relative(root, dealsniperLogPath(root, ym));
+
 console.log("=== Deal Sniper Status ===\n");
+console.log(`Current month: ${ym}\n`);
 
 let watchRunning = false;
 try {
@@ -45,6 +57,7 @@ if (!watchRunning) {
 }
 
 console.log("\n--- Latest log (last 15 lines) ---");
+const logPath = getLogPath();
 if (fs.existsSync(logPath)) {
   const lines = fs.readFileSync(logPath, "utf8").trimEnd().split("\n");
   const tail = lines.slice(-15);
@@ -59,14 +72,25 @@ if (fs.existsSync(logPath)) {
   console.log("(no log file yet — run a scan first)");
 }
 
-console.log("\n--- Data files ---");
+console.log("\n--- Data files (current month) ---");
 for (const relativePath of [
+  currentHistoryRel,
+  currentLogRel,
   "data/baselines.json",
-  "data/price-history.jsonl",
   "data/alert-state.json",
-  "logs/dealsniper.log",
 ]) {
   console.log(fileInfo(relativePath));
+}
+
+const legacyPaths = [LEGACY_PRICE_HISTORY, LEGACY_LOG];
+const legacyPresent = legacyPaths.filter((p) =>
+  fs.existsSync(path.join(root, p))
+);
+if (legacyPresent.length > 0) {
+  console.log("\n--- Legacy files (not written to anymore) ---");
+  for (const relativePath of legacyPresent) {
+    console.log(fileInfo(relativePath));
+  }
 }
 
 console.log("\n--- Baselines ---");

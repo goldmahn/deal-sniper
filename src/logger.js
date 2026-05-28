@@ -1,8 +1,9 @@
 const fs = require("fs");
 const path = require("path");
+const { dealsniperLogPath } = require("./monthly-paths");
 
-const logDir = path.join(__dirname, "..", "logs");
-const logPath = path.join(logDir, "dealsniper.log");
+const root = path.join(__dirname, "..");
+const logDir = path.join(root, "logs");
 
 function ensureLogDir() {
   if (!fs.existsSync(logDir)) {
@@ -10,10 +11,14 @@ function ensureLogDir() {
   }
 }
 
+function getLogPath() {
+  return dealsniperLogPath(root);
+}
+
 function writeLog(message) {
   ensureLogDir();
   const line = `[${new Date().toISOString()}] ${message}\n`;
-  fs.appendFileSync(logPath, line);
+  fs.appendFileSync(getLogPath(), line);
 }
 
-module.exports = { writeLog, logPath };
+module.exports = { writeLog, getLogPath };
