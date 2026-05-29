@@ -55,7 +55,10 @@ async function processWatch(page, watch, stats) {
     stats.candidates += 1;
   }
 
-  const { baselineBefore, watchBaseline } = readAndUpdateBaseline(candidate);
+  const { baselineBefore, watchBaseline } = readAndUpdateBaseline(
+    candidate,
+    keptForCandidate
+  );
 
   for (const result of results) {
     annotateHistoryRow(result, candidate, watchBaseline);
