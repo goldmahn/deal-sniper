@@ -1,20 +1,16 @@
-const fs = require("fs");
-const path = require("path");
+const {
+  readBaselines: readBaselinesFromStore,
+  writeBaselines: writeBaselinesToStore,
+} = require("./repositories/baseline-repository");
 
-const baselinesPath = path.join(__dirname, "..", "data", "baselines.json");
+const root = require("path").join(__dirname, "..");
 
 function readBaselines() {
-  if (!fs.existsSync(baselinesPath)) return {};
-
-  try {
-    return JSON.parse(fs.readFileSync(baselinesPath, "utf8"));
-  } catch {
-    return {};
-  }
+  return readBaselinesFromStore(root);
 }
 
 function writeBaselines(baselines) {
-  fs.writeFileSync(baselinesPath, JSON.stringify(baselines, null, 2) + "\n");
+  writeBaselinesToStore(root, baselines);
 }
 
 function getBaselineKey(store, watchName) {

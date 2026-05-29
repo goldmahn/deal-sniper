@@ -1,58 +1,77 @@
 require("dotenv").config();
 
 const { chromium } = require("playwright");
-const fs = require("fs");
 const path = require("path");
 
 const headless = process.env.HEADLESS !== "false";
 
-const { updateBaseline, getBaseline } = require("./baselines");
-const {
-  shouldSendTelegramAlert,
-  recordAlertSent,
-  resolveAlertStateKey,
-} = require("./alert-state");
-const { sendTelegramMessage } = require("./telegram");
-const { checkNeweggSearch } = require("./stores/newegg");
-const { validateListingTitle } = require("./validation");
+const { loadWatches } = require("./repositories/watches-repository");
+const { appendObservation } = require("./repositories/observation-repository");
 const { writeLog } = require("./logger");
-const { priceHistoryPath } = require("./monthly-paths");
-const { enrichNeweggListingIdentity } = require("./identity/newegg-ram");
 const {
-  dedupeValidListingsByProductKey,
-  annotateResultsDedupe,
-} = require("./identity/dedupe-by-product-key");
+  scrapeWatch,
+  validateListings,
+  enrichIdentity,
+  dedupeListings,
+  selectCandidate,
+  readAndUpdateBaseline,
+  annotateHistoryRow,
+  evaluateAlert,
+  sendAlertIfAllowed,
+} = require("./scan-pipeline");
 
 const root = path.join(__dirname, "..");
-const productsPath = path.join(root, "data", "products.json");
 
-function pickWatchCandidate(results) {
-  let best = null;
+async function processWatch(page, watch, stats) {
+  const scrapeOutcome = await scrapeWatch(page, watch);
 
-  for (const result of results) {
-    if (result.price === null) continue;
-    if (!best || result.price < best.price) {
-      best = result;
-    }
+  if (scrapeOutcome.unknownStore) {
+    console.error(`Unknown store: ${scrapeOutcome.unknownStore}`);
+    writeLog(
+      `ERROR Unknown store for watch="${watch.name}": ${scrapeOutcome.unknownStore}`
+    );
+    return;
   }
 
-  return best;
-}
+  let results = scrapeOutcome.results;
+  stats.listingsScraped += results.length;
 
-function shouldAlert(result, baseline) {
-  const price = result.price;
-  const targetPrice = result.targetPrice;
+  results = validateListings(results, watch);
+  results = enrichIdentity(results);
 
-  if (price === null) return false;
+  const { results: dedupedResults, validCount, keptForCandidate, duplicatesCollapsed } =
+    dedupeListings(results);
+  results = dedupedResults;
 
-  const hitsTarget = targetPrice !== null && price <= targetPrice;
+  stats.listingsValid += validCount;
+  stats.duplicatesCollapsed += duplicatesCollapsed;
 
-  const isAnomalousDrop =
-    baseline &&
-    baseline.marketSampleSize >= 10 &&
-    price <= baseline.averagePrice * 0.55;
+  if (duplicatesCollapsed > 0) {
+    writeLog(`Watch "${watch.name}" duplicatesCollapsed=${duplicatesCollapsed}`);
+  }
 
-  return hitsTarget || isAnomalousDrop;
+  const candidate = selectCandidate(keptForCandidate);
+  if (candidate) {
+    stats.candidates += 1;
+  }
+
+  const { baselineBefore, watchBaseline } = readAndUpdateBaseline(candidate);
+
+  for (const result of results) {
+    annotateHistoryRow(result, candidate, watchBaseline);
+
+    if (result.isWatchCandidate) {
+      if (evaluateAlert(result, candidate, baselineBefore)) {
+        stats.alerts += 1;
+        result.telegramSent = await sendAlertIfAllowed(candidate, stats);
+      }
+    }
+
+    appendObservation(root, result);
+    console.log(JSON.stringify(result, null, 2));
+  }
+
+  console.log("\n---\n");
 }
 
 async function runScan() {
@@ -67,10 +86,10 @@ async function runScan() {
     duplicatesCollapsed: 0,
   };
 
-  let products;
+  let watches;
   try {
-    products = JSON.parse(fs.readFileSync(productsPath, "utf8"));
-    stats.watches = products.length;
+    watches = loadWatches(root);
+    stats.watches = watches.length;
   } catch (error) {
     writeLog(`ERROR Scan failed to load products: ${error.message}`);
     throw error;
@@ -88,118 +107,12 @@ async function runScan() {
 
     const page = await browser.newPage();
 
-    for (const product of products) {
+    for (const watch of watches) {
       try {
-        let results = [];
-
-        switch (product.store) {
-          case "newegg":
-            results = await checkNeweggSearch(page, product);
-            break;
-
-          default:
-            console.error(`Unknown store: ${product.store}`);
-            writeLog(`ERROR Unknown store for watch="${product.name}": ${product.store}`);
-            continue;
-        }
-
-        stats.listingsScraped += results.length;
-
-        for (const result of results) {
-          const validation = validateListingTitle(
-            result.title,
-            product.requirements
-          );
-          result.validationPassed = validation.validationPassed;
-          result.validationReasons = validation.validationReasons;
-          enrichNeweggListingIdentity(result);
-        }
-
-        const validResults = results.filter(
-          (result) => result.validationPassed
-        );
-        stats.listingsValid += validResults.length;
-
-        const { keptForCandidate, keptSet, duplicatesCollapsed } =
-          dedupeValidListingsByProductKey(validResults);
-        stats.duplicatesCollapsed += duplicatesCollapsed;
-        annotateResultsDedupe(results, keptSet);
-
-        if (duplicatesCollapsed > 0) {
-          writeLog(
-            `Watch "${product.name}" duplicatesCollapsed=${duplicatesCollapsed}`
-          );
-        }
-
-        const candidate = pickWatchCandidate(keptForCandidate);
-        if (candidate) {
-          stats.candidates += 1;
-        }
-        const baselineBefore = candidate
-          ? getBaseline(candidate.store, candidate.watchName)
-          : null;
-        const baselineAfter = candidate ? updateBaseline(candidate) : null;
-        const watchBaseline = baselineAfter ?? baselineBefore;
-
-        for (const result of results) {
-          const isWatchCandidate =
-            candidate !== null && result.url === candidate.url;
-
-          result.isWatchCandidate = isWatchCandidate;
-          result.baselineAverage = watchBaseline?.averagePrice ?? null;
-          result.marketSampleSize = watchBaseline?.marketSampleSize ?? 0;
-
-          if (isWatchCandidate) {
-            const alertIdentity = resolveAlertStateKey(candidate);
-            result.alertStateKey = alertIdentity.alertStateKey;
-            result.alertStateKeySource = alertIdentity.alertStateKeySource;
-
-            result.alert = shouldAlert(candidate, baselineBefore);
-
-            if (result.alert) {
-              stats.alerts += 1;
-              const { send, reason } = shouldSendTelegramAlert(candidate);
-              result.telegramSent = send;
-
-              if (send) {
-                stats.telegramSends += 1;
-                const alertMessage = `🚨 DEAL SNIPER ALERT 🚨
-
-${candidate.watchName}
-
-Price: $${candidate.price}
-
-${candidate.title}
-
-${candidate.url}`;
-
-                console.log("\n🚨 POSSIBLE DEAL ALERT 🚨");
-                console.log(alertMessage);
-
-                await sendTelegramMessage(alertMessage);
-                recordAlertSent(candidate);
-              } else {
-                console.log(
-                  `Telegram alert suppressed (${reason}) for ${candidate.url}`
-                );
-              }
-            }
-          } else {
-            result.alert = false;
-          }
-
-          fs.appendFileSync(
-            priceHistoryPath(root),
-            JSON.stringify(result) + "\n"
-          );
-
-          console.log(JSON.stringify(result, null, 2));
-        }
-
-        console.log("\n---\n");
+        await processWatch(page, watch, stats);
       } catch (error) {
-        console.error(`Error checking ${product.name}:`, error.message);
-        writeLog(`ERROR watch="${product.name}" ${error.message}`);
+        console.error(`Error checking ${watch.name}:`, error.message);
+        writeLog(`ERROR watch="${watch.name}" ${error.message}`);
       }
     }
   } catch (error) {

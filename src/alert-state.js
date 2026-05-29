@@ -1,8 +1,11 @@
-const fs = require("fs");
-const path = require("path");
+const {
+  readAlertState: readAlertStateFromStore,
+  writeAlertState: writeAlertStateToStore,
+} = require("./repositories/alert-state-repository");
+
 require("dotenv").config();
 
-const alertStatePath = path.join(__dirname, "..", "data", "alert-state.json");
+const root = require("path").join(__dirname, "..");
 
 const cooldownMs =
   (Number(process.env.ALERT_COOLDOWN_HOURS) || 12) * 60 * 60 * 1000;
@@ -10,17 +13,11 @@ const improvementFactor =
   1 - (Number(process.env.ALERT_PRICE_IMPROVEMENT_PERCENT) || 5) / 100;
 
 function readAlertState() {
-  if (!fs.existsSync(alertStatePath)) return {};
-
-  try {
-    return JSON.parse(fs.readFileSync(alertStatePath, "utf8"));
-  } catch {
-    return {};
-  }
+  return readAlertStateFromStore(root);
 }
 
 function writeAlertState(state) {
-  fs.writeFileSync(alertStatePath, JSON.stringify(state, null, 2) + "\n");
+  writeAlertStateToStore(root, state);
 }
 
 function resolveAlertStateKey(listing) {
