@@ -1,4 +1,5 @@
 const { checkNeweggSearch } = require("./stores/newegg");
+const { checkCraigslistSearch } = require("./stores/craigslist");
 const { validateListingTitle } = require("./validation");
 const { enrichNeweggListingIdentity } = require("./identity/newegg-ram");
 const {
@@ -34,10 +35,11 @@ function shouldAlert(result, baseline) {
 
   const hitsTarget = targetPrice !== null && price <= targetPrice;
 
-  const isAnomalousDrop =
+  const isAnomalousDrop = Boolean(
     baseline &&
-    baseline.marketSampleSize >= 10 &&
-    price <= baseline.averagePrice * 0.55;
+      baseline.marketSampleSize >= 10 &&
+      price <= baseline.averagePrice * 0.55
+  );
 
   return hitsTarget || isAnomalousDrop;
 }
@@ -46,6 +48,9 @@ async function scrapeWatch(page, watch) {
   switch (watch.store) {
     case "newegg":
       return { results: await checkNeweggSearch(page, watch) };
+
+    case "craigslist":
+      return { results: await checkCraigslistSearch(page, watch) };
 
     default:
       return { unknownStore: watch.store, results: [] };
@@ -89,13 +94,27 @@ function selectCandidate(keptForCandidate) {
   return pickWatchCandidate(keptForCandidate);
 }
 
-function readAndUpdateBaseline(candidate) {
+function readAndUpdateBaseline(candidate, marketListings) {
   if (!candidate) {
     return { baselineBefore: null, watchBaseline: null };
   }
 
   const baselineBefore = getBaseline(candidate.store, candidate.watchName);
-  const baselineAfter = updateBaseline(candidate);
+
+  // Feed the whole valid market (not just the cheapest candidate) into the
+  // rolling baseline so the average reflects the market, not the minimum.
+  const source =
+    marketListings && marketListings.length ? marketListings : [candidate];
+  const prices = source
+    .map((listing) => listing.price)
+    .filter((price) => price !== null);
+
+  const baselineAfter = updateBaseline(
+    candidate.store,
+    candidate.watchName,
+    prices,
+    candidate.checkedAt
+  );
   const watchBaseline = baselineAfter ?? baselineBefore;
 
   return { baselineBefore, watchBaseline };

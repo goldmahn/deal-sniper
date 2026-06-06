@@ -40,7 +40,8 @@ Only the literal value `false` opens a window; any other value keeps headless mo
 
 - **`npm start`** — Run one scan pass: read watches from `data/products.json`, scrape each watch, append to the current month’s `data/price-history-YYYY-MM.jsonl`, update `data/baselines.json`, and send Telegram messages for alerts.
 - **`npm run watch`** — Run scans repeatedly on a timer (default every 15 minutes, set `POLL_INTERVAL_MINUTES` in `.env`). Skips a tick if the previous scan is still running. Logs scan start/end and the next scheduled tick.
-- **`npm run status`** — Quick health check: watch process running, last log lines, data file sizes, baseline summary.
+- **`npm run status`** — Quick health check: watch process running, last log lines, data file sizes, baseline summary. Process detection works on both Linux/macOS and Windows.
+- **`npm test`** — Run the unit test suite (Node's built-in test runner; no extra dependencies).
 - **`npm run test:telegram`** — Send a single test message (`Deal Sniper online.`) to verify `.env` and Telegram connectivity.
 
 ## Unattended operation (tmux)
@@ -77,10 +78,14 @@ Watches are a JSON array. Each entry needs:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | yes | Label for logs and alerts (e.g. `"DDR5 32GB Newegg Test"`). |
-| `store` | yes | Store adapter name. Currently only `"newegg"` is supported. |
-| `url` | yes | Page to open (for Newegg, a search results URL). |
+| `store` | yes | Store adapter name. Supported: `"newegg"`, `"craigslist"`. |
+| `url` | yes | Page to open (a search results URL for the chosen store). |
 | `targetPrice` | no | Alert when a listing price is at or below this value (USD). |
 | `requirements` | no | Optional filters applied to scraped listing titles before candidate selection. |
+
+### Craigslist watches
+
+Set `"store": "craigslist"` and point `url` at a Craigslist search results page, e.g. `https://sfbay.craigslist.org/search/sss?query=ddr5%20ram&sort=priceasc`. The adapter scrapes up to 20 results (title, URL, price, location) and tolerates several Craigslist layouts. Craigslist listings have no product identity yet, so each result is treated individually (no dedupe); the `requirements` title filters still apply if you set them.
 
 ### Requirements (`requirements`)
 
@@ -128,7 +133,7 @@ Example:
 
 ## Runtime data (not committed)
 
-- `data/baselines.json` — rolling price stats per watch
+- `data/baselines.json` — rolling price stats per watch. The `averagePrice` is the mean of the most recent `BASELINE_WINDOW_SIZE` prices (default 50) across all valid listings for that watch; `lowestSeen`/`highestSeen` are all-time. Used for the anomaly-drop alert (`price ≤ averagePrice × 0.55` once `marketSampleSize ≥ 10`).
 - `data/price-history-YYYY-MM.jsonl` — append-only log of each scraped listing (one file per month)
 - `data/alert-state.json` — last Telegram alert per product or listing (deduplication). Keys use `store:watchName:productKey` when `productKey` is present, otherwise `store:watchName:url` (legacy). No migration required; old URL keys are simply unused for listings that now have a `productKey`.
 - `logs/dealsniper-YYYY-MM.log` — operational scan log (start/end, counts, errors; one file per month)

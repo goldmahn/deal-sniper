@@ -22,5 +22,11 @@
       "allowedKitLayouts": ["2x32", "4x16"],
       "excludeTerms": ["SO-DIMM", "SODIMM", "Laptop", "Mac", "Server"]
     }
+  },
+  {
+    "name": "DDR5 RAM Craigslist SF",
+    "store": "craigslist",
+    "url": "https://sfbay.craigslist.org/search/sss?query=ddr5%20ram&sort=priceasc",
+    "targetPrice": 60
   }
 ]

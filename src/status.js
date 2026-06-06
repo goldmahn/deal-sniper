@@ -35,21 +35,36 @@ const currentLogRel = path.relative(root, dealsniperLogPath(root, ym));
 console.log("=== Deal Sniper Status ===\n");
 console.log(`Current month: ${ym}\n`);
 
-let watchRunning = false;
-try {
-  const matches = execSync('pgrep -fl "src/watch.js"', {
-    encoding: "utf8",
-  }).trim();
-
-  if (matches) {
-    watchRunning = true;
-    console.log("Watch process: RUNNING");
-    for (const line of matches.split("\n")) {
-      console.log(`  ${line}`);
+function findWatchProcesses() {
+  try {
+    if (process.platform === "win32") {
+      // Match node.exe processes whose command line includes watch.js. Filtering
+      // on Name='node.exe' avoids matching this PowerShell invocation itself.
+      const psCommand =
+        "Get-CimInstance Win32_Process -Filter \\\"name='node.exe'\\\" | " +
+        "Where-Object { $_.CommandLine -like '*watch.js*' } | " +
+        "ForEach-Object { ([string]$_.ProcessId) + ' ' + $_.CommandLine }";
+      return execSync(`powershell -NoProfile -Command "${psCommand}"`, {
+        encoding: "utf8",
+      }).trim();
     }
+
+    return execSync('pgrep -fl "src/watch.js"', { encoding: "utf8" }).trim();
+  } catch {
+    // pgrep exits 1 (and PowerShell may error) when there is no match.
+    return "";
   }
-} catch {
-  // pgrep exits 1 when no match
+}
+
+let watchRunning = false;
+const matches = findWatchProcesses();
+
+if (matches) {
+  watchRunning = true;
+  console.log("Watch process: RUNNING");
+  for (const line of matches.split("\n")) {
+    console.log(`  ${line.trim()}`);
+  }
 }
 
 if (!watchRunning) {
