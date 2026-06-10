@@ -4,6 +4,7 @@ node_modules/
 # Generated at runtime
 data/baselines.json
 data/baselines.old.json
+data/product-baselines.json
 data/price-history.jsonl
 data/price-history-*.jsonl
 data/alert-state.json

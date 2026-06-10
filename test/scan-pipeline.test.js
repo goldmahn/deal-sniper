@@ -3,13 +3,13 @@ const assert = require("node:assert/strict");
 
 const {
   pickWatchCandidate,
-  shouldAlert,
   validateListings,
   enrichIdentity,
   dedupeListings,
   selectCandidate,
   annotateHistoryRow,
-  evaluateAlert,
+  formatAnomalyAlert,
+  formatManualAlert,
 } = require("../src/scan-pipeline");
 
 test("pickWatchCandidate returns the lowest-priced listing", () => {
@@ -27,28 +27,6 @@ test("pickWatchCandidate skips null prices and returns null when none priced", (
 
   const candidate = pickWatchCandidate([{ price: null }, { price: 42 }]);
   assert.equal(candidate.price, 42);
-});
-
-test("shouldAlert fires when price meets the target", () => {
-  assert.equal(shouldAlert({ price: 75, targetPrice: 80 }, null), true);
-  assert.equal(shouldAlert({ price: 85, targetPrice: 80 }, null), false);
-});
-
-test("shouldAlert ignores null prices and absent targets", () => {
-  assert.equal(shouldAlert({ price: null, targetPrice: 80 }, null), false);
-  assert.equal(shouldAlert({ price: 50, targetPrice: null }, null), false);
-});
-
-test("shouldAlert anomaly path requires sample size >= 10 and a >=45% drop", () => {
-  const ripeBaseline = { marketSampleSize: 10, averagePrice: 100 };
-
-  // 54 <= 55 -> alert; 56 > 55 -> no alert
-  assert.equal(shouldAlert({ price: 54, targetPrice: null }, ripeBaseline), true);
-  assert.equal(shouldAlert({ price: 56, targetPrice: null }, ripeBaseline), false);
-
-  // Not enough samples yet -> no anomaly alert
-  const youngBaseline = { marketSampleSize: 9, averagePrice: 100 };
-  assert.equal(shouldAlert({ price: 10, targetPrice: null }, youngBaseline), false);
 });
 
 test("validateListings annotates each row with validation outcome", () => {
@@ -97,29 +75,43 @@ test("enrichIdentity + dedupeListings produce candidate pool and counts", () => 
   assert.equal(candidate.price, 80);
 });
 
-test("annotateHistoryRow marks the candidate row and snapshots baseline", () => {
+test("annotateHistoryRow marks candidate row and attaches anomaly alert metadata", () => {
   const candidate = {
     store: "newegg",
     watchName: "W",
     url: "https://www.newegg.com/p/N82E1/y",
     productKey: "newegg:item:N82E1",
-    price: 80,
+    price: 10,
   };
   const baseline = { averagePrice: 120.5, marketSampleSize: 11 };
+  const alertOutcome = {
+    alert: true,
+    alertType: "anomaly",
+    alertSeverity: "absurd",
+    alertExplanation: "Current price is 90% below recent observed baseline for this product (absurd pricing anomaly).",
+    alertDropPercent: 90,
+    alertBaselineSource: "product",
+    alertBaselineAverage: 100,
+    alertBaselineSampleSize: 12,
+    alertStateKey: "newegg:W:newegg:item:N82E1",
+    alertStateKeySource: "productKey",
+    telegramSent: true,
+  };
 
   const candidateRow = { url: candidate.url };
-  annotateHistoryRow(candidateRow, candidate, baseline);
+  annotateHistoryRow(candidateRow, candidate, baseline, alertOutcome);
   assert.equal(candidateRow.isWatchCandidate, true);
   assert.equal(candidateRow.baselineAverage, 120.5);
   assert.equal(candidateRow.marketSampleSize, 11);
-  assert.equal(candidateRow.alertStateKey, "newegg:W:newegg:item:N82E1");
-  assert.equal(candidateRow.alertStateKeySource, "productKey");
+  assert.equal(candidateRow.alert, true);
+  assert.equal(candidateRow.alertType, "anomaly");
+  assert.equal(candidateRow.alertSeverity, "absurd");
+  assert.equal(candidateRow.telegramSent, true);
 
   const otherRow = { url: "https://www.newegg.com/p/N82E1/other" };
   annotateHistoryRow(otherRow, candidate, baseline);
   assert.equal(otherRow.isWatchCandidate, false);
   assert.equal(otherRow.alert, false);
-  assert.equal(otherRow.alertStateKey, undefined);
 });
 
 test("annotateHistoryRow handles the no-candidate case", () => {
@@ -131,9 +123,43 @@ test("annotateHistoryRow handles the no-candidate case", () => {
   assert.equal(row.alert, false);
 });
 
-test("evaluateAlert stores the boolean outcome on the row", () => {
-  const row = {};
-  const fired = evaluateAlert(row, { price: 75, targetPrice: 80 }, null);
-  assert.equal(fired, true);
-  assert.equal(row.alert, true);
+test("formatAnomalyAlert includes severity, baseline, drop, and explanation", () => {
+  const listing = {
+    watchName: "DDR5 32GB Newegg Test",
+    price: 10,
+    title: "Test RAM",
+    url: "https://www.newegg.com/p/1",
+  };
+  const evaluation = {
+    severity: "absurd",
+    baselineAverage: 100,
+    baselineSampleSize: 12,
+    baselineSource: "product",
+    dropPercent: 90,
+    explanation: "Current price is 90% below recent observed baseline for this product (absurd pricing anomaly).",
+  };
+
+  const message = formatAnomalyAlert(listing, evaluation);
+  assert.match(message, /PRICING ANOMALY \(ABSURD\)/);
+  assert.match(message, /Baseline: \$100 \(product, 12 samples\)/);
+  assert.match(message, /Drop: 90%/);
+  assert.match(message, /Test RAM/);
+});
+
+test("formatManualAlert is labeled separately from anomaly alerts", () => {
+  const listing = {
+    watchName: "DDR5 32GB Newegg Test",
+    price: 75,
+    targetPrice: 80,
+    title: "Test RAM",
+    url: "https://www.newegg.com/p/1",
+  };
+  const evaluation = {
+    explanation: "Price $75 is at or below manual target $80.",
+  };
+
+  const message = formatManualAlert(listing, evaluation);
+  assert.match(message, /MANUAL PRICE TARGET/);
+  assert.doesNotMatch(message, /PRICING ANOMALY/);
+  assert.match(message, /Manual target: \$80/);
 });

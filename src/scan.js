@@ -7,6 +7,7 @@ const headless = process.env.HEADLESS !== "false";
 
 const { loadWatches } = require("./repositories/watches-repository");
 const { appendObservation } = require("./repositories/observation-repository");
+const { updateProductBaselinesFromListings } = require("./product-baselines");
 const { writeLog } = require("./logger");
 const {
   scrapeWatch,
@@ -14,10 +15,10 @@ const {
   enrichIdentity,
   dedupeListings,
   selectCandidate,
-  readAndUpdateBaseline,
+  readWatchBaselineBefore,
+  updateWatchBaselineAfter,
+  processListingAlerts,
   annotateHistoryRow,
-  evaluateAlert,
-  sendAlertIfAllowed,
 } = require("./scan-pipeline");
 
 const root = path.join(__dirname, "..");
@@ -55,20 +56,29 @@ async function processWatch(page, watch, stats) {
     stats.candidates += 1;
   }
 
-  const { baselineBefore, watchBaseline } = readAndUpdateBaseline(
-    candidate,
-    keptForCandidate
+  const watchBaselineBefore = readWatchBaselineBefore(
+    candidate?.store ?? watch.store,
+    candidate?.watchName ?? watch.name
   );
 
-  for (const result of results) {
-    annotateHistoryRow(result, candidate, watchBaseline);
+  const alertOutcomes = await processListingAlerts(
+    keptForCandidate,
+    watchBaselineBefore,
+    stats
+  );
 
-    if (result.isWatchCandidate) {
-      if (evaluateAlert(result, candidate, baselineBefore)) {
-        stats.alerts += 1;
-        result.telegramSent = await sendAlertIfAllowed(candidate, stats);
-      }
-    }
+  const watchBaseline =
+    updateWatchBaselineAfter(candidate, keptForCandidate) ?? watchBaselineBefore;
+
+  updateProductBaselinesFromListings(keptForCandidate);
+
+  for (const result of results) {
+    annotateHistoryRow(
+      result,
+      candidate,
+      watchBaseline,
+      alertOutcomes.get(result.url)
+    );
 
     appendObservation(root, result);
     console.log(JSON.stringify(result, null, 2));

@@ -7,6 +7,8 @@ const {
   annotateResultsDedupe,
 } = require("./identity/dedupe-by-product-key");
 const { getBaseline, updateBaseline } = require("./baselines");
+const { getProductBaseline } = require("./product-baselines");
+const { evaluateAnomaly, evaluateManualTarget } = require("./anomaly-engine");
 const {
   shouldSendTelegramAlert,
   recordAlertSent,
@@ -25,23 +27,6 @@ function pickWatchCandidate(results) {
   }
 
   return best;
-}
-
-function shouldAlert(result, baseline) {
-  const price = result.price;
-  const targetPrice = result.targetPrice;
-
-  if (price === null) return false;
-
-  const hitsTarget = targetPrice !== null && price <= targetPrice;
-
-  const isAnomalousDrop = Boolean(
-    baseline &&
-      baseline.marketSampleSize >= 10 &&
-      price <= baseline.averagePrice * 0.55
-  );
-
-  return hitsTarget || isAnomalousDrop;
 }
 
 async function scrapeWatch(page, watch) {
@@ -94,33 +79,160 @@ function selectCandidate(keptForCandidate) {
   return pickWatchCandidate(keptForCandidate);
 }
 
-function readAndUpdateBaseline(candidate, marketListings) {
-  if (!candidate) {
-    return { baselineBefore: null, watchBaseline: null };
+function readWatchBaselineBefore(store, watchName) {
+  if (!store || !watchName) {
+    return null;
   }
 
-  const baselineBefore = getBaseline(candidate.store, candidate.watchName);
+  return getBaseline(store, watchName);
+}
 
-  // Feed the whole valid market (not just the cheapest candidate) into the
-  // rolling baseline so the average reflects the market, not the minimum.
+function updateWatchBaselineAfter(candidate, marketListings) {
+  if (!candidate) {
+    return null;
+  }
+
   const source =
     marketListings && marketListings.length ? marketListings : [candidate];
   const prices = source
     .map((listing) => listing.price)
     .filter((price) => price !== null);
 
-  const baselineAfter = updateBaseline(
+  return updateBaseline(
     candidate.store,
     candidate.watchName,
     prices,
     candidate.checkedAt
   );
-  const watchBaseline = baselineAfter ?? baselineBefore;
-
-  return { baselineBefore, watchBaseline };
 }
 
-function annotateHistoryRow(result, candidate, watchBaseline) {
+function formatAnomalyAlert(listing, evaluation) {
+  const sourceLabel =
+    evaluation.baselineSource === "product"
+      ? "product"
+      : "watch fallback";
+
+  return `🚨 DEAL SNIPER — PRICING ANOMALY (${evaluation.severity.toUpperCase()})
+
+${listing.watchName}
+
+Price: $${listing.price}
+Baseline: $${evaluation.baselineAverage} (${sourceLabel}, ${evaluation.baselineSampleSize} samples)
+Drop: ${evaluation.dropPercent}% below recent observed baseline
+
+${evaluation.explanation}
+
+${listing.title}
+
+${listing.url}`;
+}
+
+function formatManualAlert(listing, evaluation) {
+  return `📌 DEAL SNIPER — MANUAL PRICE TARGET
+
+${listing.watchName}
+
+Price: $${listing.price}
+Manual target: $${listing.targetPrice}
+
+${evaluation.explanation}
+
+${listing.title}
+
+${listing.url}`;
+}
+
+async function sendAlertIfAllowed(listing, message, stats) {
+  const { send, reason } = shouldSendTelegramAlert(listing);
+
+  if (!send) {
+    console.log(
+      `Telegram alert suppressed (${reason}) for ${listing.url}`
+    );
+    return false;
+  }
+
+  stats.telegramSends += 1;
+  console.log("\n🚨 DEAL SNIPER ALERT 🚨");
+  console.log(message);
+
+  await sendTelegramMessage(message);
+  recordAlertSent(listing);
+
+  return true;
+}
+
+async function processListingAlerts(listings, watchBaselineBefore, stats) {
+  const outcomes = new Map();
+
+  for (const listing of listings) {
+    const productBaseline = getProductBaseline(
+      listing.store,
+      listing.productKey
+    );
+    const anomaly = evaluateAnomaly({
+      listing,
+      productBaseline,
+      watchBaseline: watchBaselineBefore,
+    });
+
+    if (anomaly.shouldAlert) {
+      stats.alerts += 1;
+      const telegramSent = await sendAlertIfAllowed(
+        listing,
+        formatAnomalyAlert(listing, anomaly),
+        stats
+      );
+      const alertIdentity = resolveAlertStateKey(listing);
+
+      outcomes.set(listing.url, {
+        alert: true,
+        alertType: "anomaly",
+        alertSeverity: anomaly.severity,
+        alertExplanation: anomaly.explanation,
+        alertDropPercent: anomaly.dropPercent,
+        alertBaselineSource: anomaly.baselineSource,
+        alertBaselineAverage: anomaly.baselineAverage,
+        alertBaselineSampleSize: anomaly.baselineSampleSize,
+        alertStateKey: alertIdentity.alertStateKey,
+        alertStateKeySource: alertIdentity.alertStateKeySource,
+        telegramSent,
+      });
+      continue;
+    }
+
+    const manual = evaluateManualTarget({ listing });
+    if (!manual.shouldAlert) {
+      continue;
+    }
+
+    stats.alerts += 1;
+    const telegramSent = await sendAlertIfAllowed(
+      listing,
+      formatManualAlert(listing, manual),
+      stats
+    );
+    const alertIdentity = resolveAlertStateKey(listing);
+
+    outcomes.set(listing.url, {
+      alert: true,
+      alertType: "manual",
+      alertSeverity: null,
+      alertExplanation: manual.explanation,
+      alertDropPercent: null,
+      alertBaselineSource: null,
+      alertBaselineAverage: null,
+      alertBaselineSampleSize: null,
+      alertStateKey: alertIdentity.alertStateKey,
+      alertStateKeySource: alertIdentity.alertStateKeySource,
+      telegramSent,
+    });
+  }
+
+  return outcomes;
+}
+
+function annotateHistoryRow(result, candidate, watchBaseline, alertOutcome) {
   const isWatchCandidate =
     candidate !== null && result.url === candidate.url;
 
@@ -128,61 +240,36 @@ function annotateHistoryRow(result, candidate, watchBaseline) {
   result.baselineAverage = watchBaseline?.averagePrice ?? null;
   result.marketSampleSize = watchBaseline?.marketSampleSize ?? 0;
 
-  if (!isWatchCandidate) {
+  if (!alertOutcome?.alert) {
     result.alert = false;
     return;
   }
 
-  const alertIdentity = resolveAlertStateKey(candidate);
-  result.alertStateKey = alertIdentity.alertStateKey;
-  result.alertStateKeySource = alertIdentity.alertStateKeySource;
-}
-
-function evaluateAlert(result, candidate, baselineBefore) {
-  result.alert = shouldAlert(candidate, baselineBefore);
-  return result.alert;
-}
-
-async function sendAlertIfAllowed(candidate, stats) {
-  const { send, reason } = shouldSendTelegramAlert(candidate);
-
-  if (!send) {
-    console.log(
-      `Telegram alert suppressed (${reason}) for ${candidate.url}`
-    );
-    return false;
-  }
-
-  stats.telegramSends += 1;
-  const alertMessage = `🚨 DEAL SNIPER ALERT 🚨
-
-${candidate.watchName}
-
-Price: $${candidate.price}
-
-${candidate.title}
-
-${candidate.url}`;
-
-  console.log("\n🚨 POSSIBLE DEAL ALERT 🚨");
-  console.log(alertMessage);
-
-  await sendTelegramMessage(alertMessage);
-  recordAlertSent(candidate);
-
-  return true;
+  result.alert = true;
+  result.alertType = alertOutcome.alertType;
+  result.alertSeverity = alertOutcome.alertSeverity;
+  result.alertExplanation = alertOutcome.alertExplanation;
+  result.alertDropPercent = alertOutcome.alertDropPercent;
+  result.alertBaselineSource = alertOutcome.alertBaselineSource;
+  result.alertBaselineAverage = alertOutcome.alertBaselineAverage;
+  result.alertBaselineSampleSize = alertOutcome.alertBaselineSampleSize;
+  result.alertStateKey = alertOutcome.alertStateKey;
+  result.alertStateKeySource = alertOutcome.alertStateKeySource;
+  result.telegramSent = alertOutcome.telegramSent;
 }
 
 module.exports = {
   pickWatchCandidate,
-  shouldAlert,
   scrapeWatch,
   validateListings,
   enrichIdentity,
   dedupeListings,
   selectCandidate,
-  readAndUpdateBaseline,
+  readWatchBaselineBefore,
+  updateWatchBaselineAfter,
+  processListingAlerts,
   annotateHistoryRow,
-  evaluateAlert,
+  formatAnomalyAlert,
+  formatManualAlert,
   sendAlertIfAllowed,
 };

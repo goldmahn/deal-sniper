@@ -49,7 +49,7 @@ Only the literal value `false` opens a window; any other value keeps headless mo
 On Ginnungagap, run watch mode in a detached tmux session so it survives logout:
 
 ```bash
-cd /path/to/dealscanner/dealbot
+cd /Users/ginnungagap/Projects/dealbot
 tmux new -s dealsniper
 npm run watch
 ```
