@@ -7,8 +7,8 @@
     "start": "node src/index.js",
     "watch": "node src/watch.js",
     "status": "node src/status.js",
-    "test": "node --test",
-    "test:telegram": "node src/test-telegram.js"
+    "test": "node scripts/run-tests.js",
+    "test:telegram": "node scripts/verify-telegram.js"
   },
   "keywords": [],
   "author": "",

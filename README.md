@@ -42,7 +42,7 @@ Only the literal value `false` opens a window; any other value keeps headless mo
 - **`npm run watch`** — Run scans repeatedly on a timer (default every 15 minutes, set `POLL_INTERVAL_MINUTES` in `.env`). Skips a tick if the previous scan is still running. Logs scan start/end and the next scheduled tick.
 - **`npm run status`** — Quick health check: watch process running, last log lines, data file sizes, baseline summary. Process detection works on both Linux/macOS and Windows.
 - **`npm test`** — Run the unit test suite (Node's built-in test runner; no extra dependencies).
-- **`npm run test:telegram`** — Send a single test message (`Deal Sniper online.`) to verify `.env` and Telegram connectivity.
+- **`npm run test:telegram`** — Send a single test message (`Deal Sniper online.`) via `scripts/verify-telegram.js` to verify `.env` and Telegram connectivity.
 
 ## Unattended operation (tmux)
 

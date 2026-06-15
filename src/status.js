@@ -9,6 +9,11 @@ const {
   LEGACY_LOG,
 } = require("./monthly-paths");
 const { getLogPath } = require("./logger");
+const {
+  buildAnomalyEngineHealthLines,
+  collectRecentAlertLogTexts,
+} = require("./status-health");
+const { PRODUCT_BASELINES_FILE } = require("./repositories/product-baseline-repository");
 
 const root = path.join(__dirname, "..");
 
@@ -92,6 +97,7 @@ for (const relativePath of [
   currentHistoryRel,
   currentLogRel,
   "data/baselines.json",
+  path.join("data", PRODUCT_BASELINES_FILE),
   "data/alert-state.json",
 ]) {
   console.log(fileInfo(relativePath));
@@ -130,4 +136,14 @@ if (!fs.existsSync(baselinesPath)) {
   } catch (error) {
     console.log(`(failed to read baselines: ${error.message})`);
   }
+}
+
+console.log("");
+for (const line of buildAnomalyEngineHealthLines({
+  root,
+  logTexts: collectRecentAlertLogTexts(root, {
+    monthLogPath: logPath,
+  }),
+})) {
+  console.log(line);
 }
