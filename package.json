@@ -8,7 +8,11 @@
     "watch": "node src/watch.js",
     "status": "node src/status.js",
     "test": "node scripts/run-tests.js",
-    "test:telegram": "node scripts/verify-telegram.js"
+    "test:telegram": "node scripts/verify-telegram.js",
+    "smoke:microcenter": "node scripts/microcenter-smoke-test.js",
+    "smoke:microcenter:headed": "node scripts/microcenter-smoke-test.js --headed",
+    "smoke:bhphoto": "node scripts/bhphoto-smoke-test.js",
+    "smoke:bhphoto:headed": "node scripts/bhphoto-smoke-test.js --headed"
   },
   "keywords": [],
   "author": "",

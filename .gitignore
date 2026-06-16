@@ -11,4 +11,6 @@ data/alert-state.json
 
 logs/
 
+.playwright/
+
 .DS_Store

@@ -24,9 +24,44 @@
     }
   },
   {
-    "name": "DDR5 RAM Craigslist SF",
-    "store": "craigslist",
-    "url": "https://sfbay.craigslist.org/search/sss?query=ddr5%20ram&sort=priceasc",
-    "targetPrice": 60
+    "name": "DDR5 Desktop RAM Newegg Category",
+    "store": "newegg",
+    "url": "https://www.newegg.com/p/pl?d=DDR5+desktop+memory",
+    "requirements": {
+      "generation": "DDR5",
+      "excludeTerms": [
+        "SO-DIMM",
+        "SODIMM",
+        "Laptop",
+        "Notebook",
+        "Mac",
+        "Server",
+        "ECC",
+        "Registered",
+        "RDIMM",
+        "LRDIMM"
+      ]
+    }
+  },
+  {
+    "name": "DDR4 Desktop RAM Newegg Category",
+    "store": "newegg",
+    "url": "https://www.newegg.com/p/pl?d=DDR4+desktop+memory",
+    "targetPrice": null,
+    "requirements": {
+      "generation": "DDR4",
+      "excludeTerms": [
+        "SO-DIMM",
+        "SODIMM",
+        "Laptop",
+        "Notebook",
+        "Mac",
+        "Server",
+        "ECC",
+        "Registered",
+        "RDIMM",
+        "LRDIMM"
+      ]
+    }
   }
 ]
