@@ -63,5 +63,28 @@
         "LRDIMM"
       ]
     }
+  },
+  {
+    "name": "RTX 5070 Ti Newegg Category",
+    "store": "newegg",
+    "url": "https://www.newegg.com/p/pl?d=RTX+5070+Ti+graphics+card",
+    "targetPrice": null,
+    "requirements": {
+      "mustInclude": ["RTX", "5070 Ti"],
+      "excludeTerms": [
+        "Laptop",
+        "Notebook",
+        "Prebuilt",
+        "Desktop PC",
+        "Gaming PC",
+        "Water Block",
+        "Cooler",
+        "Bracket",
+        "Backplate",
+        "Refurbished",
+        "Open Box",
+        "Used"
+      ]
+    }
   }
 ]

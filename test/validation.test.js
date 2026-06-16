@@ -65,6 +65,20 @@ test("exclude terms reject the listing", () => {
   assert.equal(result.validationReasons.length, 2);
 });
 
+test("exclude terms use word boundaries so Gaming PC does not match PCI Express", () => {
+  const gpu = validateListingTitle(
+    "ASUS TUF Gaming GeForce RTX 5070 Ti 16GB PCI Express 5.0 Graphics Card",
+    { mustInclude: ["RTX", "5070 Ti"], excludeTerms: ["Gaming PC"] }
+  );
+  assert.equal(gpu.validationPassed, true);
+
+  const prebuilt = validateListingTitle("RTX 5070 Ti Gaming PC Desktop", {
+    mustInclude: ["RTX", "5070 Ti"],
+    excludeTerms: ["Gaming PC"],
+  });
+  assert.equal(prebuilt.validationPassed, false);
+});
+
 test("accumulates multiple failure reasons", () => {
   const result = validateListingTitle("DDR4 16GB SO-DIMM", {
     generation: "DDR5",
@@ -79,4 +93,35 @@ test("accumulates multiple failure reasons", () => {
 test("handles null title without throwing", () => {
   const result = validateListingTitle(null, { generation: "DDR5" });
   assert.equal(result.validationPassed, false);
+});
+
+test("mustInclude requires every listed term", () => {
+  const pass = validateListingTitle(
+    "ASUS TUF Gaming GeForce RTX 5070 Ti 16GB GDDR7",
+    { mustInclude: ["RTX", "5070 Ti"] }
+  );
+  assert.equal(pass.validationPassed, true);
+
+  const missingTi = validateListingTitle("MSI GeForce RTX 5070 12GB", {
+    mustInclude: ["RTX", "5070 Ti"],
+  });
+  assert.equal(missingTi.validationPassed, false);
+  assert.match(missingTi.validationReasons[0], /5070 Ti/);
+});
+
+test("mustInclude accepts compact multi-word terms without spaces", () => {
+  const result = validateListingTitle("Gigabyte RTX5070Ti Gaming OC 16G", {
+    mustInclude: ["RTX", "5070 Ti"],
+  });
+  assert.equal(result.validationPassed, true);
+});
+
+test("mustInclude works alongside RAM generation rules", () => {
+  const result = validateListingTitle("Corsair Vengeance DDR5 32GB (2 x 16GB)", {
+    generation: "DDR5",
+    totalCapacityGB: 32,
+    allowedKitLayouts: ["2x16"],
+    mustInclude: ["DDR5"],
+  });
+  assert.equal(result.validationPassed, true);
 });

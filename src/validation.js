@@ -3,6 +3,23 @@ function titleHasCapacityGB(title, capacityGB) {
   return pattern.test(title);
 }
 
+function titleIncludesTerm(title, term) {
+  const titleLower = title.toLowerCase();
+  const termLower = term.toLowerCase();
+
+  if (titleLower.includes(termLower)) {
+    return true;
+  }
+
+  if (/\s/.test(termLower)) {
+    const compactTitle = titleLower.replace(/\s+/g, "");
+    const compactTerm = termLower.replace(/\s+/g, "");
+    return compactTitle.includes(compactTerm);
+  }
+
+  return false;
+}
+
 function titleMatchesKitLayout(title, layout) {
   const parts = layout.toLowerCase().split("x");
   if (parts.length !== 2) return false;
@@ -17,6 +34,15 @@ function titleMatchesKitLayout(title, layout) {
   );
 
   return pattern.test(title);
+}
+
+function titleHasExcludedTerm(title, term) {
+  const titleLower = title.toLowerCase();
+  const termLower = term.toLowerCase();
+  const escaped = termLower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`\\b${escaped.replace(/\s+/g, "\\s+")}\\b`, "i");
+
+  return pattern.test(titleLower);
 }
 
 function validateListingTitle(title, requirements) {
@@ -52,11 +78,17 @@ function validateListingTitle(title, requirements) {
     }
   }
 
-  if (requirements.excludeTerms?.length) {
-    const titleLower = normalizedTitle.toLowerCase();
+  if (requirements.mustInclude?.length) {
+    for (const term of requirements.mustInclude) {
+      if (!titleIncludesTerm(normalizedTitle, term)) {
+        reasons.push(`missing required term: ${term}`);
+      }
+    }
+  }
 
+  if (requirements.excludeTerms?.length) {
     for (const term of requirements.excludeTerms) {
-      if (titleLower.includes(term.toLowerCase())) {
+      if (titleHasExcludedTerm(normalizedTitle, term)) {
         reasons.push(`excluded term: ${term}`);
       }
     }
