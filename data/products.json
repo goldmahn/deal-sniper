@@ -86,5 +86,28 @@
         "Used"
       ]
     }
+  },
+  {
+    "name": "RTX 5080 Newegg Category",
+    "store": "newegg",
+    "url": "https://www.newegg.com/p/pl?d=RTX+5080+graphics+card",
+    "targetPrice": null,
+    "requirements": {
+      "mustInclude": ["RTX", "5080"],
+      "excludeTerms": [
+        "Laptop",
+        "Notebook",
+        "Prebuilt",
+        "Desktop PC",
+        "Gaming PC",
+        "Water Block",
+        "Cooler",
+        "Bracket",
+        "Backplate",
+        "Refurbished",
+        "Open Box",
+        "Used"
+      ]
+    }
   }
 ]
