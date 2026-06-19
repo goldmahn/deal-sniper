@@ -1,3 +1,5 @@
+const { validateStorageCapacity } = require("./storage-capacity");
+
 function titleHasCapacityGB(title, capacityGB) {
   const pattern = new RegExp(`\\b${capacityGB}\\s*gb\\b`, "i");
   return pattern.test(title);
@@ -75,6 +77,17 @@ function validateListingTitle(title, requirements) {
       reasons.push(
         `missing kit layout (allowed: ${requirements.allowedKitLayouts.join(", ")})`
       );
+    }
+  }
+
+  if (requirements.storageCapacityTB != null) {
+    const capacityValidation = validateStorageCapacity(
+      normalizedTitle,
+      requirements.storageCapacityTB
+    );
+
+    if (!capacityValidation.validationPassed) {
+      reasons.push(...capacityValidation.validationReasons);
     }
   }
 

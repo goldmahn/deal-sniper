@@ -125,3 +125,56 @@ test("mustInclude works alongside RAM generation rules", () => {
   });
   assert.equal(result.validationPassed, true);
 });
+
+test("mustInclude capacity terms are not special-cased in mustInclude anymore", () => {
+  const pass = validateListingTitle(
+    "Samsung 990 PRO 14TB NVMe M.2 PCIe Internal SSD",
+    { mustInclude: ["NVMe"] }
+  );
+  assert.equal(pass.validationPassed, true);
+
+  const withStorage = validateListingTitle(
+    "Samsung 990 PRO 14TB NVMe M.2 PCIe Internal SSD",
+    { storageCapacityTB: 4, mustInclude: ["NVMe"] }
+  );
+  assert.equal(withStorage.validationPassed, false);
+});
+
+test("4TB NVMe SSD watch rejects external and SATA listings", () => {
+  const requirements = {
+    storageCapacityTB: 4,
+    mustInclude: ["NVMe"],
+    excludeTerms: [
+      "External",
+      "Portable",
+      "Enclosure",
+      "Adapter",
+      "Dock",
+      "SATA",
+      "2.5",
+      "HDD",
+      "Hard Drive",
+      "Refurbished",
+      "Open Box",
+      "Used",
+    ],
+  };
+
+  const internal = validateListingTitle(
+    "Crucial T500 4TB NVMe M.2 PCIe Gen4 Internal SSD",
+    requirements
+  );
+  assert.equal(internal.validationPassed, true);
+
+  const external = validateListingTitle(
+    "SanDisk 4TB NVMe External Portable SSD USB-C",
+    requirements
+  );
+  assert.equal(external.validationPassed, false);
+
+  const sata = validateListingTitle(
+    "Team Group 4TB SATA III 2.5 inch Internal SSD",
+    requirements
+  );
+  assert.equal(sata.validationPassed, false);
+});
