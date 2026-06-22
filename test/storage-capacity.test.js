@@ -146,3 +146,70 @@ test("4TB NVMe watch requirements accept legitimate 4TB internal NVMe titles", (
     assert.equal(result.validationPassed, true, title);
   }
 });
+
+const NVME_2TB_REQUIREMENTS = {
+  storageCapacityTB: 2,
+  mustInclude: ["NVMe"],
+  excludeTerms: NVME_4TB_REQUIREMENTS.excludeTerms,
+};
+
+test("validateStorageCapacity accepts true 2TB-class titles including 2048GB", () => {
+  for (const title of [
+    "Samsung 990 PRO 2TB NVMe M.2 PCIe Gen4 Internal SSD",
+    "Crucial P3 Plus 2048GB NVMe M.2 Internal SSD",
+    "WD Black 2000GB NVMe M.2 Internal SSD",
+  ]) {
+    const result = validateStorageCapacity(title, 2);
+    assert.equal(result.validationPassed, true, title);
+  }
+});
+
+test("validateStorageCapacity rejects wrong capacities for a 2TB watch", () => {
+  const cases = [
+    "KingSpec 512GB M.2 NVMe PCIe Gen4 Gaming SSD",
+    "SanDisk Optimus GX 7100M PCIe 4.0 x4 M.2 2230 NVMe 1TB SSD",
+    "Western Digital 4TB WD Blue SN5000 NVMe SSD Internal Solid State Drive",
+    "SomeBrand 8TB NVMe M.2 PCIe Internal SSD",
+    "SomeBrand 12TB NVMe M.2 PCIe Internal SSD",
+    "SomeBrand 4096GB NVMe M.2 PCIe Internal SSD",
+  ];
+
+  for (const title of cases) {
+    const result = validateStorageCapacity(title, 2);
+    assert.equal(result.validationPassed, false, title);
+  }
+});
+
+test("12TB does not satisfy a 2TB requirement", () => {
+  const result = validateStorageCapacity(
+    "SomeBrand 12TB NVMe M.2 PCIe Internal SSD",
+    2
+  );
+  assert.match(result.validationReasons.join(" "), /12TB/);
+});
+
+test("2TB NVMe watch requirements accept legitimate internal NVMe titles", () => {
+  const valid = [
+    "SANDISK Optimus GX 7100M PCIe 4.0 x4 M.2 2230 NVMe 2TB SSD 3D NAND TLC Internal Solid State Drive (SSD)",
+    "WD_BLACK SN850X 2TB NVMe Internal Gaming SSD Solid State Drive Gen4 PCIe M.2 2280",
+    "Crucial P3 Plus 2048GB PCI-Express 4.0 x4 NVMe Internal Solid State Drive (SSD)",
+  ];
+
+  for (const title of valid) {
+    const result = validateListingTitle(title, NVME_2TB_REQUIREMENTS);
+    assert.equal(result.validationPassed, true, title);
+  }
+});
+
+test("2TB NVMe watch requirements reject wrong-capacity and external listings", () => {
+  const invalid = [
+    "SANDISK Optimus GX 7100M PCIe 4.0 x4 M.2 2230 NVMe 1TB SSD 3D NAND TLC Internal Solid State Drive (SSD)",
+    "Western Digital 4TB WD Blue SN5000 NVMe SSD Internal Solid State Drive (SSD)",
+    "SanDisk 2TB NVMe External Portable SSD USB-C",
+  ];
+
+  for (const title of invalid) {
+    const result = validateListingTitle(title, NVME_2TB_REQUIREMENTS);
+    assert.equal(result.validationPassed, false, title);
+  }
+});

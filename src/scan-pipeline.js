@@ -1,6 +1,5 @@
 const { checkNeweggSearch } = require("./stores/newegg");
 const { checkCraigslistSearch } = require("./stores/craigslist");
-const { validateListingTitle } = require("./validation");
 const { enrichNeweggListingIdentity } = require("./identity/newegg-ram");
 const {
   dedupeValidListingsByProductKey,
@@ -42,7 +41,17 @@ async function scrapeWatch(page, watch) {
   }
 }
 
+function resolveFreshValidateListingTitle() {
+  for (const modulePath of ["./storage-capacity", "./validation"]) {
+    delete require.cache[require.resolve(modulePath)];
+  }
+
+  return require("./validation").validateListingTitle;
+}
+
 function validateListings(results, watch) {
+  const validateListingTitle = resolveFreshValidateListingTitle();
+
   for (const result of results) {
     const validation = validateListingTitle(result.title, watch.requirements);
     result.validationPassed = validation.validationPassed;

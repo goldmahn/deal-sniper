@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { yearMonth, priceHistoryPath } = require("../src/monthly-paths");
+const { loadWatches } = require("../src/repositories/watches-repository");
 const { validateListingTitle } = require("../src/validation");
 const {
   classifyCapacityBucket,
@@ -21,24 +22,15 @@ const {
 const WATCH_NAME = "4TB NVMe SSD Newegg Category";
 const EXPECTED_CAPACITY_TB = 4;
 
-const WATCH_REQUIREMENTS = {
-  storageCapacityTB: 4,
-  mustInclude: ["NVMe"],
-  excludeTerms: [
-    "External",
-    "Portable",
-    "Enclosure",
-    "Adapter",
-    "Dock",
-    "SATA",
-    "2.5",
-    "HDD",
-    "Hard Drive",
-    "Refurbished",
-    "Open Box",
-    "Used",
-  ],
-};
+function loadWatchRequirements(root) {
+  const watch = loadWatches(root).find((entry) => entry.name === WATCH_NAME);
+
+  if (!watch?.requirements) {
+    throw new Error(`Watch requirements not found for "${WATCH_NAME}"`);
+  }
+
+  return watch.requirements;
+}
 
 const INVESTIGATION_TARGETS = [
   {
@@ -130,13 +122,13 @@ function loadWatchBaseline(root) {
   return baselines[`newegg:${WATCH_NAME}`] ?? null;
 }
 
-function classifyListing(row) {
+function classifyListing(row, watchRequirements) {
   const classification = classifyNvmeSegment(row.title);
   const capacityAssessment = assessExpectedCapacity(
     row.title,
     EXPECTED_CAPACITY_TB
   );
-  const currentValidation = validateListingTitle(row.title, WATCH_REQUIREMENTS);
+  const currentValidation = validateListingTitle(row.title, watchRequirements);
   const capacityBucket =
     capacityAssessment.primaryBucket ?? classifyCapacityBucket(row.title);
 
@@ -151,7 +143,8 @@ function classifyListing(row) {
   };
 }
 
-function investigateHistoricalTargets(allRows) {
+function investigateHistoricalTargets(allRows, watchRequirements) {
+  const latestBatchAt = latestScanTimestamp(allRows);
   const findings = [];
 
   for (const target of INVESTIGATION_TARGETS) {
@@ -167,18 +160,22 @@ function investigateHistoricalTargets(allRows) {
       continue;
     }
 
-    const latest = rows[rows.length - 1];
+    const latestBatchRow = rows.find((row) => row.checkedAt === latestBatchAt);
+    const latest = latestBatchRow ?? rows[rows.length - 1];
+    const inLatestBatch = latestBatchRow != null;
     const passCount = rows.filter((row) => row.validationPassed).length;
     const failCount = rows.length - passCount;
     const storageValidation = validateStorageCapacity(latest.title, 4);
     const currentValidation = validateListingTitle(
       latest.title,
-      WATCH_REQUIREMENTS
+      watchRequirements
     );
 
     findings.push({
       label: target.label,
       found: true,
+      inLatestBatch,
+      latestBatchAt,
       title: latest.title,
       price: latest.price,
       productKey: latest.productKey,
@@ -208,7 +205,15 @@ function printInvestigation(findings) {
     }
 
     console.log(`  Historical rows: ${finding.historicalPassCount} passed, ${finding.historicalFailCount} failed`);
-    console.log(`  Latest scraped validationPassed: ${finding.scrapedValidationPassed}`);
+    if (finding.inLatestBatch) {
+      console.log(
+        `  Latest scan batch (${finding.latestBatchAt}) validationPassed: ${finding.scrapedValidationPassed}`
+      );
+    } else {
+      console.log(
+        `  Not in latest scan batch (${finding.latestBatchAt}); last seen validationPassed: ${finding.scrapedValidationPassed}`
+      );
+    }
     if (finding.scrapedValidationReasons.length > 0) {
       console.log(
         `  Latest scraped reasons: ${finding.scrapedValidationReasons.join("; ")}`
@@ -227,18 +232,32 @@ function printInvestigation(findings) {
     console.log(`  URL: ${finding.url}`);
 
     let cause = "search-result contamination";
-    if (!finding.storageValidation.validationPassed) {
-      cause = "missing dedicated storage-capacity validation at scrape time";
-    }
-    if (finding.historicalPassCount > 0 && finding.historicalFailCount > 0) {
-      cause += " plus inconsistent scrape-time validation";
+    if (
+      finding.inLatestBatch &&
+      finding.scrapedValidationPassed &&
+      !finding.currentValidation.validationPassed
+    ) {
+      cause = "stale validation module cache in long-running watch process";
+    } else if (
+      !finding.inLatestBatch &&
+      finding.scrapedValidationPassed &&
+      !finding.currentValidation.validationPassed
+    ) {
+      cause =
+        "historical scrape before storageCapacityTB enforcement (SKU absent from latest batch)";
+    } else if (
+      finding.inLatestBatch &&
+      !finding.scrapedValidationPassed &&
+      !finding.currentValidation.validationPassed
+    ) {
+      cause = "correctly rejected in latest scan batch";
     }
     console.log(`  Likely cause: ${cause}`);
     console.log("");
   }
 
   console.log(
-    "Summary: polluted listings do not contain a true 4TB capacity token. They entered the watch because scrape-time validation did not enforce storage class, while Newegg search results mixed lower-capacity SKUs into the category page."
+    "Summary: polluted listings lack a true 4TB capacity token. Older history rows may show validationPassed=true from before storageCapacityTB enforcement or from a stale watch process that had not reloaded validation.js. Compare latest-batch rows when a SKU is still present."
   );
   console.log("");
 }
@@ -360,6 +379,7 @@ function printBaselineRecommendation(recommendation) {
 }
 
 function runReport(root = path.join(__dirname, "..")) {
+  const watchRequirements = loadWatchRequirements(root);
   const allRows = loadAllWatchRows(root);
   const rows = allRows.filter((row) => row.validationPassed === true);
   if (rows.length === 0) {
@@ -368,10 +388,11 @@ function runReport(root = path.join(__dirname, "..")) {
 
   const scanBatchAt = latestScanTimestamp(rows);
   const batchRows = rows.filter((row) => row.checkedAt === scanBatchAt);
-  const listings = dedupeByProductKey(batchRows).map(classifyListing);
-  const historicalUnique = dedupeByProductKey(rows).map(classifyListing);
+  const classify = (row) => classifyListing(row, watchRequirements);
+  const listings = dedupeByProductKey(batchRows).map(classify);
+  const historicalUnique = dedupeByProductKey(rows).map(classify);
   const watchBaseline = loadWatchBaseline(root);
-  const investigation = investigateHistoricalTargets(allRows);
+  const investigation = investigateHistoricalTargets(allRows, watchRequirements);
 
   const segmentSummaries = Object.fromEntries(
     SEGMENTS.map((segment) => [

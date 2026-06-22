@@ -1,6 +1,8 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+const path = require("path");
 
+const { loadWatches } = require("../src/repositories/watches-repository");
 const {
   pickWatchCandidate,
   validateListings,
@@ -162,4 +164,35 @@ test("formatManualAlert is labeled separately from anomaly alerts", () => {
   assert.match(message, /MANUAL PRICE TARGET/);
   assert.doesNotMatch(message, /PRICING ANOMALY/);
   assert.match(message, /Manual target: \$80/);
+});
+
+test("validateListings enforces 4TB NVMe watch requirements from data/products.json", () => {
+  const root = path.join(__dirname, "..");
+  const watch = loadWatches(root).find(
+    (entry) => entry.name === "4TB NVMe SSD Newegg Category"
+  );
+
+  assert.ok(watch);
+  assert.equal(watch.requirements.storageCapacityTB, 4);
+
+  const rejectTitles = [
+    "KingSpec ONEBOOM X400 2280 512GB M.2 NVMe 1.4 PCIe 4.0 Gen4 Gaming SSD, Speed Up to 7400MB/s, 3D TLC NAND, Internal Solid State Disk Compatible for PS5",
+    "SANDISK Optimus™ GX 7100M PCIe® 4.0 x4 M.2 2230 NVMe™ 1TB SSD 3D NAND TLC Internal Solid State Drive (SSD) SDSP71100TAT-000E0",
+    "SANDISK Optimus™ GX 7100M PCIe® 4.0 x4 M.2 2230 NVMe™ 2TB SSD 3D NAND TLC Internal Solid State Drive (SSD) SDSP71200TAT-000E0",
+  ];
+
+  for (const title of rejectTitles) {
+    const results = [{ title }];
+    validateListings(results, watch);
+    assert.equal(results[0].validationPassed, false, title);
+  }
+
+  const passResults = [
+    {
+      title:
+        "Western Digital 4TB WD Blue SN5000 NVMe SSD, PCIe Gen 4.0, up to 5,500 MB/s Read Speeds Internal Solid State Drive (SSD)",
+    },
+  ];
+  validateListings(passResults, watch);
+  assert.equal(passResults[0].validationPassed, true);
 });

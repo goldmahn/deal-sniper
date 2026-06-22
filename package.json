@@ -12,7 +12,8 @@
     "smoke:microcenter": "node scripts/microcenter-smoke-test.js",
     "smoke:microcenter:headed": "node scripts/microcenter-smoke-test.js --headed",
     "smoke:bhphoto": "node scripts/bhphoto-smoke-test.js",
-    "smoke:bhphoto:headed": "node scripts/bhphoto-smoke-test.js --headed"
+    "smoke:bhphoto:headed": "node scripts/bhphoto-smoke-test.js --headed",
+    "report:nvme": "node scripts/report-nvme.js"
   },
   "keywords": [],
   "author": "",
