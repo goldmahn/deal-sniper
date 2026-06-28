@@ -8,6 +8,9 @@ data/product-baselines.json
 data/price-history.jsonl
 data/price-history-*.jsonl
 data/alert-state.json
+data/health-alert-state.json
+data/*.backup*
+data/*backup*
 
 logs/
 

@@ -213,3 +213,76 @@ test("2TB NVMe watch requirements reject wrong-capacity and external listings", 
     assert.equal(result.validationPassed, false, title);
   }
 });
+
+const NVME_8TB_REQUIREMENTS = {
+  storageCapacityTB: 8,
+  mustInclude: ["NVMe"],
+  excludeTerms: NVME_4TB_REQUIREMENTS.excludeTerms,
+};
+
+test("validateStorageCapacity accepts true 8TB-class titles including 8192GB", () => {
+  assert.deepEqual(getAcceptedCapacities(8), { tb: [8], gb: [8000, 8192] });
+
+  for (const title of [
+    "Samsung 990 PRO 8TB NVMe M.2 PCIe Gen4 Internal SSD",
+    "Enterprise 8192GB NVMe U.2 SSD",
+    "Archive 8000GB NVMe M.2 Internal SSD",
+  ]) {
+    const result = validateStorageCapacity(title, 8);
+    assert.equal(result.validationPassed, true, title);
+  }
+});
+
+test("validateStorageCapacity rejects wrong capacities for an 8TB watch", () => {
+  const cases = [
+    "KingSpec 512GB M.2 NVMe PCIe Gen4 Gaming SSD",
+    "SanDisk Optimus GX 7100M PCIe 4.0 x4 M.2 2230 NVMe 1TB SSD",
+    "Samsung 990 PRO 2TB NVMe M.2 PCIe Gen4 Internal SSD",
+    "Western Digital 4TB WD Blue SN5000 NVMe SSD Internal Solid State Drive",
+    "SomeBrand 16TB NVMe M.2 PCIe Internal SSD",
+    "SomeBrand 18TB NVMe M.2 PCIe Internal SSD",
+    "SomeBrand 20TB NVMe M.2 PCIe Internal SSD",
+    "SomeBrand 24TB NVMe M.2 PCIe Internal SSD",
+    "SomeBrand 4096GB NVMe M.2 PCIe Internal SSD",
+    "SomeBrand 2048GB NVMe M.2 PCIe Internal SSD",
+  ];
+
+  for (const title of cases) {
+    const result = validateStorageCapacity(title, 8);
+    assert.equal(result.validationPassed, false, title);
+  }
+});
+
+test("18TB does not satisfy an 8TB requirement", () => {
+  const result = validateStorageCapacity(
+    "SomeBrand 18TB NVMe M.2 PCIe Internal SSD",
+    8
+  );
+  assert.match(result.validationReasons.join(" "), /18TB/);
+});
+
+test("8TB NVMe watch requirements accept legitimate internal NVMe titles", () => {
+  const valid = [
+    "Sabrent Rocket 4 Plus 8TB NVMe M.2 PCIe Gen4 Internal SSD",
+    "Crucial T705 8192GB PCI-Express 5.0 x4 NVMe Internal Solid State Drive (SSD)",
+    "Team Group T-FORCE G70 PRO M.2 2280 8TB PCIe 4.0 x4 with NVMe 1.4 TLC Internal Solid State Drive (SSD)",
+  ];
+
+  for (const title of valid) {
+    const result = validateListingTitle(title, NVME_8TB_REQUIREMENTS);
+    assert.equal(result.validationPassed, true, title);
+  }
+});
+
+test("8TB NVMe watch requirements reject wrong-capacity and external listings", () => {
+  const invalid = [
+    "Western Digital 4TB WD Blue SN5000 NVMe SSD Internal Solid State Drive (SSD)",
+    "Samsung 990 PRO 2TB NVMe M.2 PCIe Gen4 Internal SSD",
+    "SanDisk 8TB NVMe External Portable SSD USB-C",
+  ];
+
+  for (const title of invalid) {
+    const result = validateListingTitle(title, NVME_8TB_REQUIREMENTS);
+    assert.equal(result.validationPassed, false, title);
+  }
+});

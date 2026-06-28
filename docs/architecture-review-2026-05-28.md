@@ -1,6 +1,6 @@
 # Deal Sniper — Architecture Review Report
 
-**Scope:** `dealscanner/dealbot`  
+**Scope:** `dealbot`  
 **Date:** 2026-05-28  
 **Constraint:** Read-only analysis; no code changes.
 

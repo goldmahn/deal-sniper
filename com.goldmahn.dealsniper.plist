@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.goldmahn.dealsniper</string>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/ginnungagap/Projects/dealbot</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/npm</string>
+    <string>run</string>
+    <string>watch</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/ginnungagap/Projects/dealbot/logs/launchd.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/ginnungagap/Projects/dealbot/logs/launchd.err.log</string>
+</dict>
+</plist>

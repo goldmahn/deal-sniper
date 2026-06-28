@@ -157,5 +157,29 @@
         "Used"
       ]
     }
+  },
+  {
+    "name": "8TB NVMe SSD Newegg Category",
+    "store": "newegg",
+    "url": "https://www.newegg.com/p/pl?d=8TB+NVMe+SSD",
+    "targetPrice": null,
+    "requirements": {
+      "storageCapacityTB": 8,
+      "mustInclude": ["NVMe"],
+      "excludeTerms": [
+        "External",
+        "Portable",
+        "Enclosure",
+        "Adapter",
+        "Dock",
+        "SATA",
+        "2.5",
+        "HDD",
+        "Hard Drive",
+        "Refurbished",
+        "Open Box",
+        "Used"
+      ]
+    }
   }
 ]

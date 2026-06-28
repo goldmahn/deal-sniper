@@ -19,37 +19,65 @@ const {
   buildRecommendation,
 } = require("../src/nvme-segment-classifier");
 
-const WATCH_NAME = "4TB NVMe SSD Newegg Category";
-const EXPECTED_CAPACITY_TB = 4;
+const DEFAULT_CAPACITY_TB = 4;
 
-function loadWatchRequirements(root) {
-  const watch = loadWatches(root).find((entry) => entry.name === WATCH_NAME);
+function parseReportOptions(argv = process.argv.slice(2)) {
+  let capacityTB = DEFAULT_CAPACITY_TB;
+
+  for (let index = 0; index < argv.length; index += 1) {
+    if (argv[index] === "--capacity" && argv[index + 1]) {
+      capacityTB = Number(argv[index + 1]);
+      index += 1;
+    }
+  }
+
+  if (!Number.isFinite(capacityTB) || capacityTB <= 0) {
+    throw new Error("Invalid --capacity value");
+  }
+
+  return {
+    capacityTB,
+    watchName: `${capacityTB}TB NVMe SSD Newegg Category`,
+  };
+}
+
+function loadWatchRequirements(root, watchName) {
+  const watch = loadWatches(root).find((entry) => entry.name === watchName);
 
   if (!watch?.requirements) {
-    throw new Error(`Watch requirements not found for "${WATCH_NAME}"`);
+    throw new Error(`Watch requirements not found for "${watchName}"`);
   }
 
   return watch.requirements;
 }
 
-const INVESTIGATION_TARGETS = [
-  {
-    label: "512GB KingSpec ONEBOOM X400",
-    productKey: "newegg:item:0D9-010Y-00004",
-  },
-  {
-    label: "1TB SanDisk Optimus GX 7100M",
-    match: (row) => row.title.includes("1TB") && row.title.includes("7100M"),
-  },
-  {
-    label: "2TB SanDisk Optimus GX 7100M",
-    match: (row) => row.title.includes("2TB") && row.title.includes("7100M"),
-  },
-  {
-    label: "2TB SanDisk Optimus GX PRO 8100",
-    match: (row) => row.title.includes("2TB") && row.title.includes("8100"),
-  },
-];
+function getInvestigationTargets(capacityTB) {
+  const targets = [
+    {
+      label: "512GB KingSpec ONEBOOM X400",
+      productKey: "newegg:item:0D9-010Y-00004",
+    },
+  ];
+
+  if (capacityTB === 4) {
+    targets.push(
+      {
+        label: "1TB SanDisk Optimus GX 7100M",
+        match: (row) => row.title.includes("1TB") && row.title.includes("7100M"),
+      },
+      {
+        label: "2TB SanDisk Optimus GX 7100M",
+        match: (row) => row.title.includes("2TB") && row.title.includes("7100M"),
+      },
+      {
+        label: "2TB SanDisk Optimus GX PRO 8100",
+        match: (row) => row.title.includes("2TB") && row.title.includes("8100"),
+      }
+    );
+  }
+
+  return targets;
+}
 
 function formatMoney(value) {
   if (value == null || !Number.isFinite(value)) {
@@ -59,7 +87,7 @@ function formatMoney(value) {
   return `$${value.toFixed(2)}`;
 }
 
-function loadAllWatchRows(root) {
+function loadAllWatchRows(root, watchName) {
   const historyPath = priceHistoryPath(root, yearMonth());
 
   if (!fs.existsSync(historyPath)) {
@@ -72,7 +100,7 @@ function loadAllWatchRows(root) {
     .split("\n")
     .filter(Boolean)
     .map((line) => JSON.parse(line))
-    .filter((row) => row.watchName === WATCH_NAME);
+    .filter((row) => row.watchName === watchName);
 }
 
 function loadWatchRows(root) {
@@ -111,7 +139,7 @@ function dedupeByProductKey(rows) {
   return [...byKey.values()].sort((left, right) => left.price - right.price);
 }
 
-function loadWatchBaseline(root) {
+function loadWatchBaseline(root, watchName) {
   const baselinesPath = path.join(root, "data", "baselines.json");
 
   if (!fs.existsSync(baselinesPath)) {
@@ -119,14 +147,14 @@ function loadWatchBaseline(root) {
   }
 
   const baselines = JSON.parse(fs.readFileSync(baselinesPath, "utf8"));
-  return baselines[`newegg:${WATCH_NAME}`] ?? null;
+  return baselines[`newegg:${watchName}`] ?? null;
 }
 
-function classifyListing(row, watchRequirements) {
+function classifyListing(row, watchRequirements, expectedCapacityTB) {
   const classification = classifyNvmeSegment(row.title);
   const capacityAssessment = assessExpectedCapacity(
     row.title,
-    EXPECTED_CAPACITY_TB
+    expectedCapacityTB
   );
   const currentValidation = validateListingTitle(row.title, watchRequirements);
   const capacityBucket =
@@ -143,11 +171,15 @@ function classifyListing(row, watchRequirements) {
   };
 }
 
-function investigateHistoricalTargets(allRows, watchRequirements) {
+function investigateHistoricalTargets(
+  allRows,
+  watchRequirements,
+  investigationTargets
+) {
   const latestBatchAt = latestScanTimestamp(allRows);
   const findings = [];
 
-  for (const target of INVESTIGATION_TARGETS) {
+  for (const target of investigationTargets) {
     const rows = allRows.filter((row) => {
       if (target.productKey) {
         return row.productKey === target.productKey;
@@ -165,7 +197,10 @@ function investigateHistoricalTargets(allRows, watchRequirements) {
     const inLatestBatch = latestBatchRow != null;
     const passCount = rows.filter((row) => row.validationPassed).length;
     const failCount = rows.length - passCount;
-    const storageValidation = validateStorageCapacity(latest.title, 4);
+    const storageValidation = validateStorageCapacity(
+      latest.title,
+      watchRequirements.storageCapacityTB
+    );
     const currentValidation = validateListingTitle(
       latest.title,
       watchRequirements
@@ -257,7 +292,7 @@ function printInvestigation(findings) {
   }
 
   console.log(
-    "Summary: polluted listings lack a true 4TB capacity token. Older history rows may show validationPassed=true from before storageCapacityTB enforcement or from a stale watch process that had not reloaded validation.js. Compare latest-batch rows when a SKU is still present."
+    "Summary: polluted listings lack the expected capacity token. Older history rows may show validationPassed=true from before storageCapacityTB enforcement or from a stale watch process that had not reloaded validation.js. Compare latest-batch rows when a SKU is still present."
   );
   console.log("");
 }
@@ -378,21 +413,28 @@ function printBaselineRecommendation(recommendation) {
   }
 }
 
-function runReport(root = path.join(__dirname, "..")) {
-  const watchRequirements = loadWatchRequirements(root);
-  const allRows = loadAllWatchRows(root);
+function runReport(root = path.join(__dirname, ".."), options = parseReportOptions()) {
+  const { capacityTB, watchName } = options;
+  const watchRequirements = loadWatchRequirements(root, watchName);
+  const investigationTargets = getInvestigationTargets(capacityTB);
+  const allRows = loadAllWatchRows(root, watchName);
   const rows = allRows.filter((row) => row.validationPassed === true);
   if (rows.length === 0) {
-    throw new Error(`No valid listings found for watch "${WATCH_NAME}"`);
+    throw new Error(`No valid listings found for watch "${watchName}"`);
   }
 
   const scanBatchAt = latestScanTimestamp(rows);
   const batchRows = rows.filter((row) => row.checkedAt === scanBatchAt);
-  const classify = (row) => classifyListing(row, watchRequirements);
+  const classify = (row) =>
+    classifyListing(row, watchRequirements, capacityTB);
   const listings = dedupeByProductKey(batchRows).map(classify);
   const historicalUnique = dedupeByProductKey(rows).map(classify);
-  const watchBaseline = loadWatchBaseline(root);
-  const investigation = investigateHistoricalTargets(allRows, watchRequirements);
+  const watchBaseline = loadWatchBaseline(root, watchName);
+  const investigation = investigateHistoricalTargets(
+    allRows,
+    watchRequirements,
+    investigationTargets
+  );
 
   const segmentSummaries = Object.fromEntries(
     SEGMENTS.map((segment) => [
@@ -422,8 +464,8 @@ function runReport(root = path.join(__dirname, "..")) {
     pollutedPrices,
   });
 
-  console.log("=== 4TB NVMe SSD Watch — Segment Report ===\n");
-  console.log(`Watch: ${WATCH_NAME}`);
+  console.log(`=== ${capacityTB}TB NVMe SSD Watch — Segment Report ===\n`);
+  console.log(`Watch: ${watchName}`);
   console.log(`Source: ${path.relative(root, priceHistoryPath(root, yearMonth()))}`);
   console.log(`Latest scan batch: ${scanBatchAt}`);
   console.log(`Unique valid products in latest batch (deduped): ${listings.length}`);
@@ -500,4 +542,8 @@ if (require.main === module) {
   }
 }
 
-module.exports = { runReport, WATCH_NAME };
+module.exports = {
+  runReport,
+  parseReportOptions,
+  DEFAULT_CAPACITY_TB,
+};
