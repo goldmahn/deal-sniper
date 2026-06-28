@@ -1,8 +1,12 @@
 require("dotenv").config();
 
+const path = require("path");
 const { runScan } = require("./scan");
 const { writeLog } = require("./logger");
+const { buildHealthReport } = require("./health");
+const { processHealthAlerts } = require("./health/alerts");
 
+const root = path.join(__dirname, "..");
 const pollIntervalMinutes = Number(process.env.POLL_INTERVAL_MINUTES) || 15;
 const pollIntervalMs = pollIntervalMinutes * 60 * 1000;
 
@@ -34,6 +38,15 @@ async function runScanTick() {
   } catch (error) {
     console.error(`[watch] Scan failed: ${error.message}`);
     writeLog(`ERROR Watch tick failed: ${error.message}`);
+  }
+
+  try {
+    writeLog("Health alerts pipeline started");
+    const report = buildHealthReport({ root, watchRunning: true });
+    await processHealthAlerts({ report, root });
+  } catch (error) {
+    console.error(`[watch] Health alerts failed: ${error.message}`);
+    writeLog(`ERROR Health alerts failed: ${error.message}`);
   } finally {
     scanInProgress = false;
     const endedAt = new Date();

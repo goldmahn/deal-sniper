@@ -13,6 +13,12 @@ const {
   buildAnomalyEngineHealthLines,
   collectRecentAlertLogTexts,
 } = require("./status-health");
+const { buildHealthReport, formatHealthSection } = require("./health");
+const { loadHealthAlertsConfig } = require("./health/alerts-config");
+const {
+  readHealthAlertState,
+  formatHealthAlertsStatusLines,
+} = require("./health/alert-state");
 const { PRODUCT_BASELINES_FILE } = require("./repositories/product-baseline-repository");
 
 const root = path.join(__dirname, "..");
@@ -145,5 +151,23 @@ for (const line of buildAnomalyEngineHealthLines({
     monthLogPath: logPath,
   }),
 })) {
+  console.log(line);
+}
+
+console.log("");
+for (const line of formatHealthSection(
+  buildHealthReport({
+    root,
+    watchRunning,
+  })
+)) {
+  console.log(line);
+}
+
+console.log("");
+for (const line of formatHealthAlertsStatusLines(
+  readHealthAlertState(root),
+  loadHealthAlertsConfig()
+)) {
   console.log(line);
 }
